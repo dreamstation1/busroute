@@ -278,6 +278,17 @@
       "9": "지하철9호선", "경의": "경의중앙선", "공항": "공항철도", "GTX-A": "GTX-A"
     };
 
+    const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "공항", "경의", "신림", "GTX-A"];
+
+    function sortLines(lines) {
+      return [...lines].sort((a, b) => {
+        const ai = lineOrder.indexOf(a);
+        const bi = lineOrder.indexOf(b);
+        if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+        return String(a).localeCompare(String(b), "ko");
+      });
+    }
+
     const stationEnglish = {
       "서울역": "Seoul Station",
       "신정네거리역": "Sinjeongnegeori Station",
@@ -318,8 +329,9 @@
     }
 
     function extractStationKey(name) {
-      const match = name.match(/[가-힣A-Za-z0-9·]+?역/);
-      return match ? match[0].replace(/[·]/g, "") : "";
+      const matches = [...name.matchAll(/[가-힣A-Za-z0-9·]+?역(?=$|[0-9]|번|출구|·|\s|[.,/()-])/g)]
+        .map((m) => m[0].replace(/[·]/g, ""));
+      return matches.at(-1) || "";
     }
 
     function inferEnglish(stopName) {
@@ -356,6 +368,15 @@
       return { text: without.trim(), transfers };
     }
 
+    function extractInlineRailStation(text) {
+      const match = text.match(/([1-9])호선\s*([가-힣A-Za-z0-9·]+?역)(?=$|[0-9]|번|출구|·|\s|[.,/()-])/);
+      if (!match) return { text, transfers: [] };
+      return {
+        text: text.slice(match.index + match[1].length + 2).trim(),
+        transfers: [match[1]]
+      };
+    }
+
     function parseStopLine(line) {
       let raw = line.trim();
       let manualEnglish = "";
@@ -370,16 +391,24 @@
       if (parts[2]) manualEnglish = parts[2];
 
       const extracted = parseTransfersFromParentheses(raw);
-      const transfers = Array.from(new Set(pipeTransfers.concat(extracted.transfers)));
-      const name = extracted.text.replace(/\s+/g, " ").trim();
+      const inlineRail = extractInlineRailStation(extracted.text);
+      const transfers = sortLines(Array.from(new Set(pipeTransfers.concat(extracted.transfers, inlineRail.transfers))));
+      const name = inlineRail.text.replace(/\s+/g, " ").trim();
       const english = manualEnglish || ($("autoEnglish").checked ? inferEnglish(name) : "");
+      const stationKey = extractStationKey(name);
 
       return {
         name,
         english,
         transfers,
-        isStation: transfers.length > 0 || /역/.test(name)
+        isStation: transfers.length > 0 || Boolean(stationKey)
       };
+    }
+
+    function formatFirstLast(value) {
+      const times = String(value).match(/\d{1,2}:\d{2}/g) || [];
+      if (times.length >= 2) return `첫차 ${times[0]} - 막차 ${times[1]} (차고지 기준)`;
+      return value ? `첫차 ${value} - 막차 (차고지 기준)` : "";
     }
 
     function parseStops(text) {
@@ -415,22 +444,24 @@
       </g>`;
     }
 
-    function mapEndpointMarker(x, y, fill) {
-      return `<g>
-        <circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="#151515" stroke-width="2"/>
-        <path d="M ${x - 4} ${y - 5} H ${x + 4} C ${x + 8} ${y - 5} ${x + 9} ${y - 2} ${x + 9} ${y + 1} V ${y + 6}" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M ${x + 9} ${y + 6} L ${x + 4} ${y + 1} M ${x + 9} ${y + 6} L ${x + 14} ${y + 1}" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </g>`;
+    function angleBetween(a, b) {
+      return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+    }
+
+    function mapEndpointMarker(x, y, fill, angle = 0) {
+      const isBlue = fill.toLowerCase() === "#0872bd";
+      const href = isBlue ? "./uturn-blue.png" : "./uturn-green.png";
+      const w = isBlue ? 26 : 33;
+      const h = isBlue ? 27 : 34;
+      return `<image href="${href}" x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" transform="rotate(${angle} ${x} ${y})" preserveAspectRatio="xMidYMid meet"/>`;
     }
 
     function transferStack(x, y, transfers, side = "below", compact = false) {
       if (!transfers.length) return "";
       const direction = side === "above" ? -1 : 1;
-      const firstOffset = compact ? 12 : 20;
-      const step = compact ? 20 : 21;
-      const connector = transfers.length > 1
-        ? `<line x1="${x}" y1="${y + direction * 4}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`
-        : "";
+      const firstOffset = compact ? 18 : 18;
+      const step = compact ? 20 : 20;
+      const connector = `<line x1="${x}" y1="${y + direction * 5}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`;
       return `<g>${connector}${transfers.map((t, i) => {
         const ty = y + direction * (firstOffset + i * step);
         return marker(x, ty, transferColors[t] || "#777", t, 18);
@@ -446,8 +477,9 @@
       const labelY = y + dy;
       const nameText = `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">${esc(stop.name)}</text>`;
       const inlineEnglish = stop.english && nameLength <= 8;
+      const englishY = labelY + (inlineEnglish ? 0 : 22);
       const english = stop.english
-        ? `<text x="${labelX + (inlineEnglish ? nameLength * fontSize * 0.68 + 6 : 0)}" y="${labelY + (inlineEnglish ? 0 : 14)}" transform="rotate(${angle} ${labelX + (inlineEnglish ? nameLength * fontSize * 0.68 + 6 : 0)} ${labelY + (inlineEnglish ? 0 : 14)})" font-size="8.8" font-weight="700" fill="#333">${esc(stop.english)}</text>`
+        ? `<text x="${labelX + (inlineEnglish ? nameLength * fontSize * 0.74 + 10 : 0)}" y="${englishY}" transform="rotate(${angle} ${labelX + (inlineEnglish ? nameLength * fontSize * 0.74 + 10 : 0)} ${englishY})" font-size="8.2" font-weight="700" fill="#333">${esc(stop.english)}</text>`
         : "";
       return `<g>
         ${nameText}
@@ -457,8 +489,8 @@
 
     function stopNode(x, y, stop, index, total, routeColor, rowSide) {
       const multiTransfer = stop.transfers.length > 1;
-      const node = multiTransfer ? "" : `<circle cx="${x}" cy="${y}" r="5.1" fill="#fff" stroke="#111" stroke-width="2.2"/>`;
-      const transferSide = multiTransfer ? "below" : (rowSide === "top" ? "below" : "above");
+      const node = `<circle cx="${x}" cy="${y}" r="5.1" fill="#fff" stroke="#111" stroke-width="2.2"/>`;
+      const transferSide = "below";
       return `<g>
         ${node}
         ${labelBlock(x, y, stop, rowSide === "top" ? "above" : "above")}
@@ -573,8 +605,8 @@
         <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
         <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>
         <path d="${linePath(guide)}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-        ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor) : ""}
-        ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor) : ""}
+        ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor, angleBetween(coords[0], coords[1] || coords[0])) : ""}
+        ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor, angleBetween(coords.at(-1), coords.at(-2) || coords.at(-1))) : ""}
         ${labels}
         <rect x="32" y="32" width="120" height="120" fill="#fff" stroke="#666" stroke-width="2"/>
         <path d="M46 104 L82 64 L122 78 L150 50 V152 H32 V128 Z" fill="#9a9d9f"/>
@@ -585,7 +617,7 @@
     }
 
     function legend(transfers) {
-      const items = Array.from(new Set(transfers)).slice(0, 10);
+      const items = sortLines(Array.from(new Set(transfers))).slice(0, 10);
       return `<g transform="translate(406 220)">
         ${items.map((t, i) => {
           const y = i * 28;
@@ -619,7 +651,7 @@
         <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
         <g transform="translate(98 0)">${legend(allTransfers)}</g>
         <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("interval").value)}</text>
-        <text x="486" y="658" font-size="15" font-weight="1000">첫차·막차 ${esc($("firstLast").value)} (차고지 기준)</text>
+        <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("firstLast").value))}</text>
         <text x="486" y="684" font-size="15" font-weight="1000">${esc($("operator").value)}</text>
         ${top.svg}
         ${bottom.svg}

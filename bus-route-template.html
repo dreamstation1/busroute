@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>버스 노선도 템플릿</title>
+  <style>
+    :root {
+      --ink: #111;
+      --muted: #68717b;
+      --rule: #d2d8df;
+      --green: #13a84b;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #edf1f5;
+      color: var(--ink);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 390px minmax(0, 1fr);
+    }
+
+    .controls {
+      padding: 22px;
+      background: #fff;
+      border-right: 1px solid var(--rule);
+      overflow: auto;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    label {
+      display: block;
+      margin: 13px 0 6px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid #c9d0d8;
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 165px;
+      line-height: 1.46;
+      resize: vertical;
+      white-space: pre;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .check input {
+      width: 16px;
+      height: 16px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 11px 12px;
+      color: #fff;
+      background: #273746;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: #17202a;
+      background: #e5eaf0;
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .stage {
+      overflow: auto;
+      padding: 18px;
+      background:
+        linear-gradient(45deg, #e4e8ed 25%, transparent 25%),
+        linear-gradient(-45deg, #e4e8ed 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e4e8ed 75%),
+        linear-gradient(-45deg, transparent 75%, #e4e8ed 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+
+    .sheet {
+      min-width: 1500px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgb(20 30 40 / 15%);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .controls { border-right: 0; border-bottom: 1px solid var(--rule); }
+      .stage { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="controls">
+      <h1>버스 노선도 템플릿</h1>
+
+      <div class="row">
+        <div>
+          <label for="routeNo">노선번호</label>
+          <input id="routeNo" value="5620" />
+        </div>
+        <div>
+          <label for="routeColor">노선색</label>
+          <select id="routeColor">
+            <option value="#13a84b" selected>초록</option>
+            <option value="#0872bd">파랑</option>
+            <option value="#273746">검정</option>
+            <option value="#f28c28">주황</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="from">기점</label>
+          <input id="from" value="시흥" />
+        </div>
+        <div>
+          <label for="to">종점</label>
+          <input id="to" value="선유도역" />
+        </div>
+      </div>
+
+      <label for="directionLayout">방향 화살표 표시</label>
+      <select id="directionLayout">
+        <option value="single" selected>한줄: 기점 → 종점</option>
+        <option value="double">두줄: 기점 / → 종점</option>
+      </select>
+
+      <label for="outbound">상행 정류장</label>
+      <textarea id="outbound">서울과학수사연구소·고강동종점
+신안파크아파트후문
+중부운수앞
+신월동우성상가
+신월문화체육센터
+한빛종합사회복지관
+강서초등학교·신월4동주민센터
+신월2동주민센터입구
+양강중학교
+신정네거리역 (2호선 신정지선)
+서울경서농협
+우리은행신정동지점
+신정1동우체국
+서울남부지방법원·서울남부지방검찰청
+남부법원·검찰청교차로
+양천구청·양천보건소
+양천문화회관·양천일자리센터
+목동10단지A상가
+신정7동주민센터·목동12단지
+목동12·13단지사잇길
+양천구청역 (2호선 신정지선)
+목동14단지B상가
+목동아파트1434동앞
+신목초등학교입구
+서울출입국외국인청사거리
+신목동새마을금고
+오목교역1번출구·대학빌딩 (5호선)
+목운초등학교·목운중학교
+목동운동장남문·아이스링크
+목동5단지C상가·목동운동장북문
+파리공원
+목동5단지B상가·목5동주민센터
+이대목동병원·목동6단지앞
+선유도역 (9호선)</textarea>
+
+      <label for="inbound">하행 정류장</label>
+      <textarea id="inbound"></textarea>
+
+      <label class="check">
+        <input id="autoReverse" type="checkbox" checked />
+        하행이 비어 있으면 상행을 역순으로 사용
+      </label>
+
+      <label class="check">
+        <input id="autoEnglish" type="checkbox" checked />
+        역 영어명 자동 표시
+      </label>
+
+      <div class="row">
+        <div>
+          <label for="interval">배차</label>
+          <input id="interval" value="8분(평일), 10분(주말), 11분(공휴일)" />
+        </div>
+        <div>
+          <label for="firstLast">첫차/막차</label>
+          <input id="firstLast" value="04:30 ~ 23:10" />
+        </div>
+      </div>
+
+      <label for="operator">버스운수</label>
+      <input id="operator" value="도원교통 02-2612-3516" />
+
+      <div class="actions">
+        <button id="renderBtn">적용</button>
+        <button id="svgBtn" class="secondary">SVG 저장</button>
+        <button id="pngBtn" class="secondary">PNG 저장</button>
+        <button id="sampleBtn" class="secondary">예시 복원</button>
+      </div>
+
+      <p class="hint">
+        한 줄에 정류장 하나씩 입력합니다. <strong>당산역 [Dangsan Station] (2호선, 9호선)</strong>,
+        <strong>당산역|2,9|Dangsan Station</strong> 둘 다 됩니다. 역 영어명을 직접 넣으면 자동 영어보다 우선합니다.
+      </p>
+    </section>
+
+    <section class="stage">
+      <div class="sheet" id="sheet"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const transferColors = {
+      "1": "#0d77bd", "2": "#18a64f", "3": "#f28c28", "4": "#1596d2",
+      "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
+      "9": "#b2a57b", "경의": "#66b68a", "공항": "#00a1b5", "GTX-A": "#a76ab0"
+    };
+
+    const lineNames = {
+      "1": "지하철1호선", "2": "지하철2호선", "3": "지하철3호선", "4": "지하철4호선",
+      "5": "지하철5호선", "6": "지하철6호선", "7": "지하철7호선", "8": "지하철8호선",
+      "9": "지하철9호선", "경의": "경의중앙선", "공항": "공항철도", "GTX-A": "GTX-A"
+    };
+
+    const stationEnglish = {
+      "서울역": "Seoul Station",
+      "신정네거리역": "Sinjeongnegeori Station",
+      "양천구청역": "Yangcheon-gu Office Station",
+      "오목교역": "Omokgyo Station",
+      "선유도역": "Seonyudo Station",
+      "당산역": "Dangsan Station",
+      "구로디지털단지역": "Guro Digital Complex Station",
+      "신풍역": "Sinpung Station",
+      "석수역": "Seoksu Station",
+      "광명역": "Gwangmyeong Station",
+      "보라매역": "Boramae Station",
+      "여의도역": "Yeouido Station",
+      "여의나루역": "Yeouinaru Station",
+      "목동역": "Mok-dong Station",
+      "신도림역": "Sindorim Station",
+      "영등포구청역": "Yeongdeungpo-gu Office Station"
+    };
+
+    const sampleData = {};
+
+    function esc(text) {
+      return String(text ?? "").replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+      }[m]));
+    }
+
+    function normalizeLineToken(token) {
+      const cleaned = token
+        .replace(/지하철/g, "")
+        .replace(/호선/g, "")
+        .replace(/신정지선/g, "")
+        .replace(/선/g, "")
+        .replace(/[()]/g, "")
+        .trim();
+      const match = cleaned.match(/GTX-A|[1-9]|경의|공항/);
+      return match ? match[0] : "";
+    }
+
+    function extractStationKey(name) {
+      const match = name.match(/[가-힣A-Za-z0-9·]+?역/);
+      return match ? match[0].replace(/[·]/g, "") : "";
+    }
+
+    function inferEnglish(stopName) {
+      const key = extractStationKey(stopName);
+      if (stationEnglish[key]) return stationEnglish[key];
+      if (!key) return "";
+      return `${romanizeHangul(key.replace(/역$/, ""))} Station`;
+    }
+
+    function romanizeHangul(text) {
+      const choseong = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+      const jungseong = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
+      const jongseong = ["", "k", "k", "ks", "n", "nj", "nh", "t", "l", "lk", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "t", "t", "ng", "t", "t", "k", "t", "p", "t"];
+      const parts = [...text].map((ch) => {
+        const code = ch.charCodeAt(0) - 0xac00;
+        if (code < 0 || code > 11171) return ch === "·" ? " " : ch;
+        const cho = Math.floor(code / 588);
+        const jung = Math.floor((code % 588) / 28);
+        const jong = code % 28;
+        return choseong[cho] + jungseong[jung] + jongseong[jong];
+      }).join(" ").replace(/\s+/g, " ").trim();
+      return parts.replace(/\b[a-z]/g, (m) => m.toUpperCase());
+    }
+
+    function parseTransfersFromParentheses(text) {
+      const transfers = [];
+      const without = text.replace(/\(([^)]*)\)/g, (_, inner) => {
+        inner.split(/[,/ ]+/).forEach((piece) => {
+          const token = normalizeLineToken(piece);
+          if (token) transfers.push(token);
+        });
+        return "";
+      });
+      return { text: without.trim(), transfers };
+    }
+
+    function parseStopLine(line) {
+      let raw = line.trim();
+      let manualEnglish = "";
+      raw = raw.replace(/\[([^\]]+)\]/g, (_, inner) => {
+        manualEnglish = inner.trim();
+        return "";
+      }).trim();
+
+      const parts = raw.split("|").map((v) => v.trim());
+      raw = parts[0] || "";
+      const pipeTransfers = (parts[1] || "").split(",").map(normalizeLineToken).filter(Boolean);
+      if (parts[2]) manualEnglish = parts[2];
+
+      const extracted = parseTransfersFromParentheses(raw);
+      const transfers = Array.from(new Set(pipeTransfers.concat(extracted.transfers)));
+      const name = extracted.text.replace(/\s+/g, " ").trim();
+      const english = manualEnglish || ($("autoEnglish").checked ? inferEnglish(name) : "");
+
+      return {
+        name,
+        english,
+        transfers,
+        isStation: transfers.length > 0 || /역/.test(name)
+      };
+    }
+
+    function parseStops(text) {
+      return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map(parseStopLine);
+    }
+
+    function marker(x, y, fill, label = "", size = 20) {
+      return `<g>
+        <circle cx="${x}" cy="${y}" r="${size / 2}" fill="${fill}" stroke="#151515" stroke-width="2"/>
+        ${label ? `<text x="${x}" y="${y + size * 0.19}" text-anchor="middle" font-size="${Math.max(8, size * 0.54)}" font-weight="900" fill="#fff">${esc(label)}</text>` : ""}
+      </g>`;
+    }
+
+    function linePath(points) {
+      return points.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ");
+    }
+
+    function uTurnIcon(x, y, fill) {
+      const isBlue = fill.toLowerCase() === "#0872bd";
+      const href = isBlue ? "./turnaround-blue.png" : "./turnaround-green.png";
+      const viewBox = isBlue ? "30 0 26 30" : "34 2 34 36";
+      return `<svg x="${x - 15}" y="${y - 15}" width="30" height="30" viewBox="${viewBox}" overflow="hidden">
+        <image href="${href}" x="0" y="0" width="${isBlue ? 56 : 69}" height="${isBlue ? 30 : 40}" preserveAspectRatio="none"/>
+      </svg>`;
+    }
+
+    function turnaroundMark(x, y, fill, labelSide = "right") {
+      const textX = labelSide === "right" ? x + 20 : x - 20;
+      const anchor = labelSide === "right" ? "start" : "end";
+      return `<g>
+        ${uTurnIcon(x, y, fill)}
+        <text x="${textX}" y="${y + 7}" text-anchor="${anchor}" font-size="16" font-weight="900" fill="${fill}">회차</text>
+      </g>`;
+    }
+
+    function mapEndpointMarker(x, y, fill) {
+      return `<g>
+        <circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="#151515" stroke-width="2"/>
+        <path d="M ${x - 4} ${y - 5} H ${x + 4} C ${x + 8} ${y - 5} ${x + 9} ${y - 2} ${x + 9} ${y + 1} V ${y + 6}" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M ${x + 9} ${y + 6} L ${x + 4} ${y + 1} M ${x + 9} ${y + 6} L ${x + 14} ${y + 1}" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>`;
+    }
+
+    function transferStack(x, y, transfers, side = "below", compact = false) {
+      if (!transfers.length) return "";
+      const direction = side === "above" ? -1 : 1;
+      const firstOffset = compact ? 12 : 20;
+      const step = compact ? 20 : 21;
+      const connector = transfers.length > 1
+        ? `<line x1="${x}" y1="${y + direction * 4}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`
+        : "";
+      return `<g>${connector}${transfers.map((t, i) => {
+        const ty = y + direction * (firstOffset + i * step);
+        return marker(x, ty, transferColors[t] || "#777", t, 18);
+      }).join("")}</g>`;
+    }
+
+    function labelBlock(x, y, stop, side = "above") {
+      const angle = -45;
+      const dy = side === "above" ? -17 : -17;
+      const nameLength = [...stop.name].length;
+      const fontSize = nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
+      const labelX = x + 8;
+      const labelY = y + dy;
+      const nameText = `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">${esc(stop.name)}</text>`;
+      const inlineEnglish = stop.english && nameLength <= 8;
+      const english = stop.english
+        ? `<text x="${labelX + (inlineEnglish ? nameLength * fontSize * 0.68 + 6 : 0)}" y="${labelY + (inlineEnglish ? 0 : 14)}" transform="rotate(${angle} ${labelX + (inlineEnglish ? nameLength * fontSize * 0.68 + 6 : 0)} ${labelY + (inlineEnglish ? 0 : 14)})" font-size="8.8" font-weight="700" fill="#333">${esc(stop.english)}</text>`
+        : "";
+      return `<g>
+        ${nameText}
+        ${english}
+      </g>`;
+    }
+
+    function stopNode(x, y, stop, index, total, routeColor, rowSide) {
+      const multiTransfer = stop.transfers.length > 1;
+      const node = multiTransfer ? "" : `<circle cx="${x}" cy="${y}" r="5.1" fill="#fff" stroke="#111" stroke-width="2.2"/>`;
+      const transferSide = multiTransfer ? "below" : (rowSide === "top" ? "below" : "above");
+      return `<g>
+        ${node}
+        ${labelBlock(x, y, stop, rowSide === "top" ? "above" : "above")}
+        ${transferStack(x, y, stop.transfers, transferSide, multiTransfer)}
+      </g>`;
+    }
+
+    function labelWidthEstimate(stop) {
+      const longest = [...stop.name].length;
+      const englishUnits = stop.english ? Math.min(24, stop.english.length * 0.42) : 0;
+      const transferBoost = stop.transfers.length > 1 ? 10 : 0;
+      return Math.max(48, Math.min(92, longest * 4.15 + englishUnits + transferBoost));
+    }
+
+    function directionTitle(x, y, titleA, titleB, routeColor, layout) {
+      if (layout === "single") {
+        return `<text x="${x}" y="${y + 23}" font-size="25" font-weight="900" fill="${routeColor}">
+          ${esc(titleA)} <tspan dx="12">→</tspan><tspan dx="12">${esc(titleB)}</tspan>
+        </text>`;
+      }
+      return `<text x="${x}" y="${y}" font-size="31" font-weight="900" fill="${routeColor}">${esc(titleA)}</text>
+        <text x="${x}" y="${y + 46}" font-size="31" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
+    }
+
+    function routeRow(stops, y, x0, titleA, titleB, routeColor, rowSide, layout) {
+      const points = [];
+      let cursor = x0;
+      stops.forEach((stop, i) => {
+        points.push(cursor);
+        if (i < stops.length - 1) cursor += Math.max(50, labelWidthEstimate(stop), labelWidthEstimate(stops[i + 1]) * 0.62);
+      });
+      const endX = points.at(-1) || x0;
+      const labels = stops.map((stop, i) => stopNode(points[i], y, stop, i, stops.length, routeColor, rowSide)).join("");
+      const isBottom = rowSide === "bottom";
+      const titleY = isBottom ? y - 110 : y - 92;
+      const returnX = isBottom ? x0 - 70 : endX + 48;
+
+      return {
+        width: endX + 125,
+        svg: `<g>
+          ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
+          <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+          ${labels}
+          ${isBottom ? `${turnaroundMark(returnX, y, routeColor, "left")}<line x1="${returnX + 16}" y1="${y}" x2="${x0 - 8}" y2="${y}" stroke="#111" stroke-width="2" stroke-dasharray="4 4"/>` : `${turnaroundMark(returnX, y, routeColor, "right")}`}
+          <line x1="${x0}" y1="${y + 14}" x2="${x0}" y2="${y + 43}" stroke="#999" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="${x0 - 9}" y="${y + 62}" text-anchor="end" font-size="11" font-weight="800">서울(출발구)</text>
+        </g>`
+      };
+    }
+
+    function mapLabelForStop(stop, fallback) {
+      if (fallback) return fallback;
+      const station = extractStationKey(stop.name);
+      if (station) return station;
+      return stop.name.replace(/·.*$/, "").replace(/앞$|후문$|입구$/, "");
+    }
+
+    function chooseMapStops(stops, from, to) {
+      const important = stops.filter((s) => s.isStation);
+      const chosen = [
+        stops[0] ? { ...stops[0], mapLabel: from } : null,
+        ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s) })),
+        stops[stops.length - 1] ? { ...stops[stops.length - 1], mapLabel: to } : null
+      ].filter(Boolean);
+      const deduped = [];
+      chosen.forEach((s, i) => {
+        const key = s.mapLabel || s.name;
+        if (!deduped.some((d) => (d.mapLabel || d.name) === key)) deduped.push(s);
+      });
+      return deduped.slice(0, 8);
+    }
+
+    const mapWidth = 455;
+
+    function miniMap(stops, routeColor, from, to) {
+      const mapStops = chooseMapStops(stops, from, to);
+      const guide = [
+        { x: 206, y: 132 }, { x: 207, y: 166 }, { x: 192, y: 198 }, { x: 228, y: 226 },
+        { x: 169, y: 242 }, { x: 174, y: 274 }, { x: 144, y: 268 }, { x: 151, y: 293 },
+        { x: 136, y: 362 }, { x: 150, y: 413 }, { x: 158, y: 475 }, { x: 146, y: 525 },
+        { x: 162, y: 612 }, { x: 185, y: 650 }
+      ];
+      const coords = mapStops.map((_, i) => {
+        const t = mapStops.length <= 1 ? 0 : i / (mapStops.length - 1);
+        const pos = t * (guide.length - 1);
+        const lo = Math.floor(pos);
+        const hi = Math.min(guide.length - 1, lo + 1);
+        const mix = pos - lo;
+        return {
+          x: guide[lo].x + (guide[hi].x - guide[lo].x) * mix,
+          y: guide[lo].y + (guide[hi].y - guide[lo].y) * mix
+        };
+      });
+      const labels = mapStops.map((s, i) => {
+        const p = coords[i];
+        const label = s.mapLabel || mapLabelForStop(s);
+        const toLeft = p.x > 180;
+        const tx = toLeft ? p.x - 20 : p.x + 20;
+        const anchor = toLeft ? "end" : "start";
+        return `<g>
+          ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, i < 2 ? "below" : "above") : ""}
+          <text x="${tx}" y="${p.y + 6}" text-anchor="${anchor}" font-size="17" font-weight="900">${esc(label)}</text>
+        </g>`;
+      }).join("");
+
+      return `<g>
+        <rect x="0" y="0" width="${mapWidth}" height="740" fill="#fff"/>
+        <path d="M0 0 H123 L88 36 L164 116 L248 26 L248 0 H455 V210 L430 210 L393 253 H348 L316 281 H265 L226 322 H196 L165 355 H120 L84 394 H0 Z" fill="#b9bbbd"/>
+        <path d="M0 160 H42 V247 H5 V386 H0 Z" fill="#b9bbbd"/>
+        <path d="M0 514 L86 424 L86 360 L127 320 L127 567 L210 650 L210 740 H0 Z" fill="#b9bbbd"/>
+        <path d="M160 740 V666 L242 591 H305 L305 557 H455 V740 Z" fill="#b9bbbd"/>
+        <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
+        <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>
+        <path d="${linePath(guide)}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor) : ""}
+        ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor) : ""}
+        ${labels}
+        <rect x="32" y="32" width="120" height="120" fill="#fff" stroke="#666" stroke-width="2"/>
+        <path d="M46 104 L82 64 L122 78 L150 50 V152 H32 V128 Z" fill="#9a9d9f"/>
+        <path d="M48 126 C66 82, 92 142, 136 82" fill="none" stroke="#fff" stroke-width="9"/>
+        <path d="M51 126 C68 84, 93 140, 134 82" fill="none" stroke="#111" stroke-width="3"/>
+        <rect x="67" y="83" width="49" height="43" fill="none" stroke="#13a84b" stroke-width="4"/>
+      </g>`;
+    }
+
+    function legend(transfers) {
+      const items = Array.from(new Set(transfers)).slice(0, 10);
+      return `<g transform="translate(406 220)">
+        ${items.map((t, i) => {
+          const y = i * 28;
+          return `${marker(0, y, transferColors[t] || "#777", t, 18)}
+            <text x="22" y="${y + 5}" font-size="14" font-weight="800">${esc(lineNames[t] || t)}</text>`;
+        }).join("")}
+      </g>`;
+    }
+
+    function render() {
+      const routeNo = $("routeNo").value.trim() || "0000";
+      const routeColor = $("routeColor").value;
+      const from = $("from").value.trim() || "기점";
+      const to = $("to").value.trim() || "종점";
+      const directionLayout = $("directionLayout").value;
+      const outbound = parseStops($("outbound").value);
+      const inboundText = $("inbound").value.trim();
+      const inbound = inboundText ? parseStops(inboundText) : ($("autoReverse").checked ? [...outbound].reverse() : []);
+      const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
+
+      const x0 = 980;
+      const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout);
+      const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout);
+      const width = Math.max(1500, top.width, bottom.width);
+      const height = 740;
+
+      $("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="버스 노선도">
+        <rect width="${width}" height="${height}" fill="#fff"/>
+        ${miniMap(outbound, routeColor, from, to)}
+        <line x1="${mapWidth}" y1="0" x2="${mapWidth}" y2="${height}" stroke="#adb3ba" stroke-width="2"/>
+        <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
+        <g transform="translate(98 0)">${legend(allTransfers)}</g>
+        <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("interval").value)}</text>
+        <text x="486" y="658" font-size="15" font-weight="1000">첫차·막차 ${esc($("firstLast").value)} (차고지 기준)</text>
+        <text x="486" y="684" font-size="15" font-weight="1000">${esc($("operator").value)}</text>
+        ${top.svg}
+        ${bottom.svg}
+      </svg>`;
+    }
+
+    function download(name, blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function saveSvg() {
+      download(`bus-route-${$("routeNo").value || "template"}.svg`, new Blob([$("routeSvg").outerHTML], { type: "image/svg+xml" }));
+    }
+
+    function savePng() {
+      const svg = $("routeSvg");
+      const xml = new XMLSerializer().serializeToString(svg);
+      const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml" }));
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = 2;
+        canvas.width = svg.viewBox.baseVal.width * scale;
+        canvas.height = svg.viewBox.baseVal.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => download(`bus-route-${$("routeNo").value || "template"}.png`, blob));
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+
+    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator", "autoReverse", "autoEnglish"]
+      .forEach((id) => $(id).addEventListener("input", render));
+    $("renderBtn").addEventListener("click", render);
+    $("svgBtn").addEventListener("click", saveSvg);
+    $("pngBtn").addEventListener("click", savePng);
+    $("sampleBtn").addEventListener("click", () => {
+      Object.entries(sampleData).forEach(([key, value]) => $(key).value = value);
+      render();
+    });
+
+    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator"].forEach((id) => {
+      sampleData[id] = $(id).value;
+    });
+
+    render();
+  </script>
+</body>
+</html>

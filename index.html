@@ -245,6 +245,9 @@
       <label for="operator">버스운수</label>
       <input id="operator" value="도원교통 02-2612-3516" />
 
+      <label for="adminPassword">관리자 비밀번호</label>
+      <input id="adminPassword" type="password" placeholder="워터마크 제거용" />
+
       <div class="actions">
         <button id="renderBtn">적용</button>
         <button id="svgBtn" class="secondary">SVG 저장</button>
@@ -633,6 +636,7 @@
       const from = $("from").value.trim() || "기점";
       const to = $("to").value.trim() || "종점";
       const directionLayout = $("directionLayout").value;
+      const showWatermark = $("adminPassword").value !== "5263815731";
       const outbound = parseStops($("outbound").value);
       const inboundText = $("inbound").value.trim();
       const inbound = inboundText ? parseStops(inboundText) : ($("autoReverse").checked ? [...outbound].reverse() : []);
@@ -653,6 +657,7 @@
         <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("interval").value)}</text>
         <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("firstLast").value))}</text>
         <text x="486" y="684" font-size="15" font-weight="1000">${esc($("operator").value)}</text>
+        ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
         ${top.svg}
         ${bottom.svg}
       </svg>`;
@@ -691,7 +696,7 @@
       img.src = url;
     }
 
-    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator", "autoReverse", "autoEnglish"]
+    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator", "adminPassword", "autoReverse", "autoEnglish"]
       .forEach((id) => $(id).addEventListener("input", render));
     $("renderBtn").addEventListener("click", render);
     $("svgBtn").addEventListener("click", saveSvg);

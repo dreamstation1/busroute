@@ -142,9 +142,56 @@
       .controls { border-right: 0; border-bottom: 1px solid var(--rule); }
       .stage { padding: 12px; }
     }
+
+    .gate {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      background: #161b20;
+    }
+
+    .gate.hidden {
+      display: none;
+    }
+
+    .gate-panel {
+      width: min(360px, calc(100vw - 32px));
+      padding: 26px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 18px 50px rgb(0 0 0 / 32%);
+    }
+
+    .gate-title {
+      margin: 0 0 16px;
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .gate-error {
+      min-height: 20px;
+      margin: 10px 0 0;
+      color: #c0332d;
+      font-size: 13px;
+      font-weight: 800;
+    }
   </style>
 </head>
 <body>
+  <section class="gate" id="gate">
+    <form class="gate-panel" id="gateForm">
+      <p class="gate-title">관리자 인증</p>
+      <label for="gatePassword">비밀번호</label>
+      <input id="gatePassword" type="password" autocomplete="current-password" autofocus />
+      <div class="actions">
+        <button type="submit">입장</button>
+      </div>
+      <p class="gate-error" id="gateError"></p>
+    </form>
+  </section>
+
   <main class="app">
     <section class="controls">
       <h1>버스 노선도 템플릿</h1>
@@ -478,16 +525,13 @@
       const fontSize = nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
       const labelX = x + 8;
       const labelY = y + dy;
-      const nameText = `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">${esc(stop.name)}</text>`;
-      const inlineEnglish = stop.english && nameLength <= 8;
-      const englishY = labelY + (inlineEnglish ? 0 : 22);
       const english = stop.english
-        ? `<text x="${labelX + (inlineEnglish ? nameLength * fontSize * 0.74 + 10 : 0)}" y="${englishY}" transform="rotate(${angle} ${labelX + (inlineEnglish ? nameLength * fontSize * 0.74 + 10 : 0)} ${englishY})" font-size="8.2" font-weight="700" fill="#333">${esc(stop.english)}</text>`
+        ? `<tspan x="${labelX}" dy="11" font-size="8.2" font-weight="700" fill="#333">${esc(stop.english)}</tspan>`
         : "";
-      return `<g>
-        ${nameText}
+      return `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">
+        <tspan x="${labelX}">${esc(stop.name)}</tspan>
         ${english}
-      </g>`;
+      </text>`;
     }
 
     function stopNode(x, y, stop, index, total, routeColor, rowSide) {
@@ -708,6 +752,18 @@
 
     ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator"].forEach((id) => {
       sampleData[id] = $(id).value;
+    });
+
+    $("gateForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if ($("gatePassword").value === "5263815731") {
+        $("adminPassword").value = "5263815731";
+        $("gate").classList.add("hidden");
+        render();
+        return;
+      }
+      $("gateError").textContent = "비밀번호가 틀렸습니다.";
+      $("gatePassword").select();
     });
 
     render();

@@ -205,9 +205,16 @@
           <label for="routeColor">노선색</label>
           <select id="routeColor">
             <option value="#13a84b" selected>초록</option>
+            <option value="#e53935">빨강</option>
             <option value="#0872bd">파랑</option>
             <option value="#273746">검정</option>
             <option value="#f28c28">주황</option>
+            <option value="#f5c400">노랑</option>
+            <option value="#7b56b7">보라</option>
+            <option value="#00a1b5">청록</option>
+            <option value="#e45b94">분홍</option>
+            <option value="#6f8e25">연두</option>
+            <option value="#8a8f98">회색</option>
           </select>
         </div>
       </div>
@@ -319,16 +326,26 @@
     const transferColors = {
       "1": "#0d77bd", "2": "#18a64f", "3": "#f28c28", "4": "#1596d2",
       "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
-      "9": "#b2a57b", "경의": "#66b68a", "공항": "#00a1b5", "GTX-A": "#a76ab0"
+      "9": "#b2a57b", "경의": "#66b68a", "경의중앙": "#66b68a", "공항": "#00a1b5",
+      "신분당": "#d4003b", "경춘": "#00a84d", "서해": "#8fc31f", "경강": "#005bac",
+      "용인에버라인": "#56ad2d", "GTX-A": "#a76ab0"
     };
 
     const lineNames = {
       "1": "지하철1호선", "2": "지하철2호선", "3": "지하철3호선", "4": "지하철4호선",
       "5": "지하철5호선", "6": "지하철6호선", "7": "지하철7호선", "8": "지하철8호선",
-      "9": "지하철9호선", "경의": "경의중앙선", "공항": "공항철도", "GTX-A": "GTX-A"
+      "9": "지하철9호선", "경의": "경의중앙선", "경의중앙": "경의중앙선", "공항": "공항철도",
+      "신분당": "신분당선", "경춘": "경춘선", "서해": "서해선", "경강": "경강선",
+      "용인에버라인": "용인에버라인", "GTX-A": "GTX-A"
     };
 
-    const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "공항", "경의", "신림", "GTX-A"];
+    const lineLabels = {
+      "경의": "경의", "경의중앙": "경의", "공항": "공",
+      "신분당": "신", "경춘": "춘", "서해": "서", "경강": "강",
+      "용인에버라인": "용", "GTX-A": "A"
+    };
+
+    const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "신분당", "경춘", "경의중앙", "경의", "공항", "서해", "경강", "용인에버라인", "신림", "GTX-A"];
 
     function sortLines(lines) {
       return [...lines].sort((a, b) => {
@@ -374,7 +391,7 @@
         .replace(/선/g, "")
         .replace(/[()]/g, "")
         .trim();
-      const match = cleaned.match(/GTX-A|[1-9]|경의|공항/);
+      const match = cleaned.match(/GTX-A|용인에버라인|경의중앙|신분당|경춘|서해|경강|[1-9]|경의|공항/);
       return match ? match[0] : "";
     }
 
@@ -466,9 +483,11 @@
     }
 
     function marker(x, y, fill, label = "", size = 20) {
+      const labelLength = [...String(label)].length;
+      const fontSize = labelLength <= 1 ? size * 0.54 : labelLength <= 2 ? size * 0.42 : size * 0.32;
       return `<g>
         <circle cx="${x}" cy="${y}" r="${size / 2}" fill="${fill}" stroke="#151515" stroke-width="2"/>
-        ${label ? `<text x="${x}" y="${y + size * 0.19}" text-anchor="middle" font-size="${Math.max(8, size * 0.54)}" font-weight="900" fill="#fff">${esc(label)}</text>` : ""}
+        ${label ? `<text x="${x}" y="${y + size * 0.18}" text-anchor="middle" font-size="${Math.max(5.8, fontSize)}" font-weight="900" fill="#fff">${esc(label)}</text>` : ""}
       </g>`;
     }
 
@@ -514,7 +533,7 @@
       const connector = `<line x1="${x}" y1="${y + direction * 5}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`;
       return `<g>${connector}${transfers.map((t, i) => {
         const ty = y + direction * (firstOffset + i * step);
-        return marker(x, ty, transferColors[t] || "#777", t, 18);
+        return marker(x, ty, transferColors[t] || "#777", lineLabels[t] || t, 18);
       }).join("")}</g>`;
     }
 
@@ -668,7 +687,7 @@
       return `<g transform="translate(406 220)">
         ${items.map((t, i) => {
           const y = i * 28;
-          return `${marker(0, y, transferColors[t] || "#777", t, 18)}
+          return `${marker(0, y, transferColors[t] || "#777", lineLabels[t] || t, 18)}
             <text x="22" y="${y + 5}" font-size="14" font-weight="800">${esc(lineNames[t] || t)}</text>`;
         }).join("")}
       </g>`;
@@ -770,3 +789,4 @@
   </script>
 </body>
 </html>
+

@@ -3,13 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>버스 노선도 템플릿</title>
+  <title>서울 버스 노선도</title>
   <style>
     :root {
       --ink: #111;
       --muted: #68717b;
       --rule: #d2d8df;
-      --green: #13a84b;
+      --accent: #005bac;
+      --accent-soft: #e8f0fa;
+      --btn: #273746;
       font-family: "Malgun Gothic", "Apple SD Gothic Neo", Arial, sans-serif;
     }
 
@@ -19,10 +21,204 @@
       margin: 0;
       background: #edf1f5;
       color: var(--ink);
+      transition: background 0.35s ease;
+    }
+
+    body.region-gyeonggi {
+      --accent: #009775;
+      --accent-soft: #e6f7f2;
+      --btn: #009775;
+      background: #eef5f2;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 22px;
+      height: 62px;
+      background: #fff;
+      border-bottom: 2px solid var(--accent);
+      box-shadow: 0 4px 18px rgb(20 30 40 / 8%);
+      transition: border-color 0.35s ease;
+    }
+
+    .site-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-badge {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: #fff;
+      background: var(--accent);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      transition: background 0.35s ease;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 900;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .region-nav {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .region-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 2px solid var(--rule);
+      border-radius: 999px;
+      padding: 9px 16px;
+      background: #fff;
+      color: #334;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .region-tab .chip {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      color: #fff;
+      background: #888;
+    }
+
+    .region-tab .chip.seoul { background: #005bac; }
+    .region-tab .chip.gg { background: #e85d04; }
+
+    .region-tab.active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    .region-tab.active .chip.seoul { background: #005bac; }
+    .region-tab.active .chip.gg { background: #009775; }
+
+    .donate-btn {
+      border: 2px solid #ffb020;
+      border-radius: 999px;
+      padding: 9px 14px;
+      background: #fff8e6;
+      color: #9a6200;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .donate-btn:hover { background: #ffefc2; }
+
+    .donate-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgb(15 23 42 / 55%);
+      backdrop-filter: blur(3px);
+    }
+
+    .donate-overlay.hidden { display: none; }
+
+    .donate-card {
+      width: min(420px, 100%);
+      padding: 26px;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgb(0 0 0 / 22%);
+    }
+
+    .donate-card h3 {
+      margin: 0 0 8px;
+      font-size: 21px;
+    }
+
+    .donate-card p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .donate-links {
+      display: grid;
+      gap: 10px;
+    }
+
+    .donate-links a {
+      display: block;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 900;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .donate-links a.toss { background: #eef4ff; color: #0064ff; }
+    .donate-links a.kofi { background: #fff0f3; color: #ff5e5b; }
+    .donate-links a.kakao { background: #fff9db; color: #3c1e1e; }
+
+    .donate-close {
+      width: 100%;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 8px;
+      padding: 11px;
+      background: #e5eaf0;
+      color: #17202a;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .donate-empty {
+      padding: 14px;
+      border-radius: 8px;
+      background: #f7f9fb;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     .app {
-      min-height: 100vh;
+      min-height: calc(100vh - 62px);
       display: grid;
       grid-template-columns: 390px minmax(0, 1fr);
     }
@@ -34,10 +230,18 @@
       overflow: auto;
     }
 
-    h1 {
+    .controls.hidden { display: none; }
+
+    h2.panel-title {
+      margin: 0 0 4px;
+      font-size: 21px;
+    }
+
+    .panel-desc {
       margin: 0 0 18px;
-      font-size: 22px;
-      letter-spacing: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
     }
 
     label {
@@ -57,11 +261,13 @@
     }
 
     textarea {
-      min-height: 165px;
       line-height: 1.46;
       resize: vertical;
       white-space: pre;
     }
+
+    .seoul-only textarea { min-height: 145px; }
+    .gg-only textarea { min-height: 210px; }
 
     .row {
       display: grid;
@@ -78,10 +284,7 @@
       font-weight: 700;
     }
 
-    .check input {
-      width: 16px;
-      height: 16px;
-    }
+    .check input { width: 16px; height: 16px; }
 
     .actions {
       display: grid;
@@ -95,10 +298,11 @@
       border-radius: 6px;
       padding: 11px 12px;
       color: #fff;
-      background: #273746;
+      background: var(--btn);
       font: inherit;
       font-weight: 900;
       cursor: pointer;
+      transition: background 0.35s ease;
     }
 
     button.secondary {
@@ -125,36 +329,42 @@
       background-position: 0 0, 0 12px, 12px -12px, -12px 0;
     }
 
+    body.region-gyeonggi .stage {
+      background:
+        linear-gradient(45deg, #ddeae4 25%, transparent 25%),
+        linear-gradient(-45deg, #ddeae4 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ddeae4 75%),
+        linear-gradient(-45deg, transparent 75%, #ddeae4 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+
     .sheet {
-      min-width: 1500px;
       background: #fff;
       box-shadow: 0 12px 32px rgb(20 30 40 / 15%);
+      transition: opacity 0.22s ease, transform 0.22s ease;
     }
 
-    svg {
-      display: block;
-      width: 100%;
-      height: auto;
+    body.region-seoul .sheet { min-width: 1500px; }
+    body.region-gyeonggi .sheet { min-width: 1200px; }
+
+    .sheet.switching {
+      opacity: 0;
+      transform: scale(0.985);
     }
 
-    @media (max-width: 900px) {
-      .app { grid-template-columns: 1fr; }
-      .controls { border-right: 0; border-bottom: 1px solid var(--rule); }
-      .stage { padding: 12px; }
-    }
+    svg { display: block; width: 100%; height: auto; }
 
     .gate {
       position: fixed;
       inset: 0;
-      z-index: 20;
+      z-index: 40;
       display: grid;
       place-items: center;
       background: #161b20;
     }
 
-    .gate.hidden {
-      display: none;
-    }
+    .gate.hidden { display: none; }
 
     .gate-panel {
       width: min(360px, calc(100vw - 32px));
@@ -164,22 +374,19 @@
       box-shadow: 0 18px 50px rgb(0 0 0 / 32%);
     }
 
-    .gate-title {
-      margin: 0 0 16px;
-      font-size: 22px;
-      font-weight: 900;
-    }
+    .gate-title { margin: 0 0 16px; font-size: 22px; font-weight: 900; }
+    .gate-error { min-height: 20px; margin: 10px 0 0; color: #c0332d; font-size: 13px; font-weight: 800; }
 
-    .gate-error {
-      min-height: 20px;
-      margin: 10px 0 0;
-      color: #c0332d;
-      font-size: 13px;
-      font-weight: 800;
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .controls { border-right: 0; border-bottom: 1px solid var(--rule); }
+      .site-header { flex-wrap: wrap; height: auto; padding: 12px 16px; }
+      .region-nav { width: 100%; }
+      .region-tab { flex: 1; justify-content: center; }
     }
   </style>
 </head>
-<body>
+<body class="region-seoul">
   <section class="gate" id="gate">
     <form class="gate-panel" id="gateForm">
       <p class="gate-title">관리자 인증</p>
@@ -192,24 +399,54 @@
     </form>
   </section>
 
+  <header class="site-header">
+    <div class="site-brand">
+      <span class="brand-badge" id="brandBadge">TOPIS</span>
+      <div>
+        <p class="brand-title" id="brandTitle">서울 시내버스 노선도</p>
+        <p class="brand-sub" id="brandSub">topis.seoul.go.kr · 상·하행 2줄 + 노선지도</p>
+      </div>
+    </div>
+    <nav class="region-nav">
+      <button type="button" class="region-tab active" data-region="seoul">
+        <span class="chip seoul">TOPIS</span>서울
+      </button>
+      <button type="button" class="region-tab" data-region="gyeonggi">
+        <span class="chip gg">G BUS</span>경기도
+      </button>
+      <button type="button" class="donate-btn" id="donateBtn">☕ 후원</button>
+    </nav>
+  </header>
+
+  <div class="donate-overlay hidden" id="donateOverlay">
+    <div class="donate-card">
+      <h3>후원하기</h3>
+      <p id="donateMessage">버스 노선도 도구가 도움이 되었다면 후원으로 응원해 주세요. 결제는 각 서비스 페이지에서 안전하게 진행됩니다.</p>
+      <div class="donate-links" id="donateLinks"></div>
+      <button type="button" class="donate-close" id="donateClose">닫기</button>
+    </div>
+  </div>
+
   <main class="app">
-    <section class="controls">
-      <h1>버스 노선도 템플릿</h1>
+    <!-- ===== 서울 패널 ===== -->
+    <section class="controls seoul-only" id="panelSeoul">
+      <h2 class="panel-title">서울 시내버스</h2>
+      <p class="panel-desc">상·하행 2줄 노선도 · 좌측 노선지도 · 회차 표시</p>
 
       <div class="row">
         <div>
-          <label for="routeNo">노선번호</label>
-          <input id="routeNo" value="5620" />
+          <label for="s_routeNo">노선번호</label>
+          <input id="s_routeNo" value="5620" />
         </div>
         <div>
-          <label for="routeColor">노선색</label>
-          <select id="routeColor">
-            <option value="#13a84b" selected>초록</option>
-            <option value="#e53935">빨강</option>
-            <option value="#0872bd">파랑</option>
+          <label for="s_routeColor">노선색</label>
+          <select id="s_routeColor">
+            <option value="#13a84b" selected>초록(지선)</option>
+            <option value="#0872bd">파랑(간선)</option>
+            <option value="#e53935">빨강(광역)</option>
             <option value="#273746">검정</option>
             <option value="#f28c28">주황</option>
-            <option value="#f5c400">노랑</option>
+            <option value="#f5c400">노랑(순환)</option>
             <option value="#7b56b7">보라</option>
             <option value="#00a1b5">청록</option>
             <option value="#e45b94">분홍</option>
@@ -221,23 +458,23 @@
 
       <div class="row">
         <div>
-          <label for="from">기점</label>
-          <input id="from" value="시흥" />
+          <label for="s_from">기점</label>
+          <input id="s_from" value="시흥" />
         </div>
         <div>
-          <label for="to">종점</label>
-          <input id="to" value="선유도역" />
+          <label for="s_to">종점</label>
+          <input id="s_to" value="선유도역" />
         </div>
       </div>
 
-      <label for="directionLayout">방향 화살표 표시</label>
-      <select id="directionLayout">
+      <label for="s_directionLayout">방향 화살표 표시</label>
+      <select id="s_directionLayout">
         <option value="single" selected>한줄: 기점 → 종점</option>
         <option value="double">두줄: 기점 / → 종점</option>
       </select>
 
-      <label for="outbound">상행 정류장</label>
-      <textarea id="outbound">서울과학수사연구소·고강동종점
+      <label for="s_outbound">상행 정류장</label>
+      <textarea id="s_outbound">서울과학수사연구소·고강동종점
 신안파크아파트후문
 중부운수앞
 신월동우성상가
@@ -272,46 +509,174 @@
 이대목동병원·목동6단지앞
 선유도역 (9호선)</textarea>
 
-      <label for="inbound">하행 정류장</label>
-      <textarea id="inbound"></textarea>
+      <label for="s_inbound">하행 정류장</label>
+      <textarea id="s_inbound"></textarea>
 
       <label class="check">
-        <input id="autoReverse" type="checkbox" checked />
+        <input id="s_autoReverse" type="checkbox" checked />
         하행이 비어 있으면 상행을 역순으로 사용
       </label>
-
       <label class="check">
-        <input id="autoEnglish" type="checkbox" checked />
+        <input id="s_autoEnglish" type="checkbox" checked />
         역 영어명 자동 표시
       </label>
 
       <div class="row">
         <div>
-          <label for="interval">배차</label>
-          <input id="interval" value="8분(평일), 10분(주말), 11분(공휴일)" />
+          <label for="s_interval">배차</label>
+          <input id="s_interval" value="8분(평일), 10분(주말), 11분(공휴일)" />
         </div>
         <div>
-          <label for="firstLast">첫차/막차</label>
-          <input id="firstLast" value="04:30 ~ 23:10" />
+          <label for="s_firstLast">첫차/막차</label>
+          <input id="s_firstLast" value="04:30 ~ 23:10" />
         </div>
       </div>
 
-      <label for="operator">버스운수</label>
-      <input id="operator" value="도원교통 02-2612-3516" />
+      <label for="s_operator">버스운수</label>
+      <input id="s_operator" value="도원교통 02-2612-3516" />
 
-      <label for="adminPassword">관리자 비밀번호</label>
-      <input id="adminPassword" type="password" placeholder="워터마크 제거용" />
+      <label for="s_adminPassword">관리자 비밀번호</label>
+      <input id="s_adminPassword" type="password" placeholder="워터마크 제거용" />
 
       <div class="actions">
-        <button id="renderBtn">적용</button>
-        <button id="svgBtn" class="secondary">SVG 저장</button>
-        <button id="pngBtn" class="secondary">PNG 저장</button>
-        <button id="sampleBtn" class="secondary">예시 복원</button>
+        <button type="button" id="s_renderBtn">적용</button>
+        <button type="button" id="s_svgBtn" class="secondary">SVG 저장</button>
+        <button type="button" id="s_pngBtn" class="secondary">PNG 저장</button>
+        <button type="button" id="s_sampleBtn" class="secondary">5620 예시</button>
       </div>
 
       <p class="hint">
-        한 줄에 정류장 하나씩 입력합니다. <strong>당산역 [Dangsan Station] (2호선, 9호선)</strong>,
-        <strong>당산역|2,9|Dangsan Station</strong> 둘 다 됩니다. 역 영어명을 직접 넣으면 자동 영어보다 우선합니다.
+        <strong>서울 전용:</strong> 상·하행을 따로 입력합니다. 좌측 <strong>노선지도</strong> + 우측 <strong>상·하행 2줄</strong> 레이아웃입니다.
+      </p>
+    </section>
+
+    <!-- ===== 경기도 패널 ===== -->
+    <section class="controls gg-only hidden" id="panelGyeonggi">
+      <h2 class="panel-title">경기도 G BUS</h2>
+      <p class="panel-desc">뱀形 단일 노선 · G BUS 헤더 · 좌측 정보패널 옵션</p>
+
+      <div class="row">
+        <div>
+          <label for="g_routeNo">노선번호</label>
+          <input id="g_routeNo" value="169" />
+        </div>
+        <div>
+          <label for="g_routeType">노선유형 (G BUS 신도색)</label>
+          <select id="g_routeType">
+            <optgroup label="일반·좌석">
+              <option value="13" selected>일반 단일시군 (#009775)</option>
+              <option value="13n">일반 신도색 (#18BF74)</option>
+              <option value="intercity">시군간 일반 (#3C96D5)</option>
+              <option value="12">좌석버스 (#0085CA)</option>
+              <option value="seat">일반좌석 하늘 (#27C7D8)</option>
+            </optgroup>
+            <optgroup label="급행·특수">
+              <option value="11">직행좌석 (#EE2737)</option>
+              <option value="14">광역급행 (#00BFFF)</option>
+              <option value="15">따복·똑버스 (#005DAB)</option>
+              <option value="16">경기순환 (#F28C28)</option>
+              <option value="premium">프리미엄 (#85714D)</option>
+              <option value="pgh">편하G (#6C56A1)</option>
+              <option value="custom">맞춤형 (#B62367)</option>
+              <option value="gm">굿모닝·2층 (#273746)</option>
+            </optgroup>
+            <optgroup label="마을·농어촌">
+              <option value="30">마을 (#F2A900)</option>
+              <option value="30n">마을 신도색 (#FED70F)</option>
+              <option value="21">농어촌 일반 (#009775)</option>
+              <option value="22">농어촌 좌석 (#0085CA)</option>
+            </optgroup>
+            <optgroup label="추가 색">
+              <option value="lime">연두 (#9AD84E)</option>
+              <option value="sky">하늘 (#27C7D8)</option>
+              <option value="cyan">청록 (#00A1B5)</option>
+              <option value="yellow">노랑 (#FED70F)</option>
+            </optgroup>
+            <option value="manual">직접 지정</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="g_routeColor">노선색</label>
+          <input id="g_routeColor" type="color" value="#009775" />
+        </div>
+        <div>
+          <label for="g_layoutMode">레이아웃</label>
+          <select id="g_layoutMode">
+            <option value="standard">표준 (G BUS 헤더)</option>
+            <option value="sidebar" selected>좌측 정보패널형</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="g_from">기점</label>
+          <input id="g_from" value="소사공영차고지" />
+        </div>
+        <div>
+          <label for="g_to">종점</label>
+          <input id="g_to" value="킨텍스(1전시장)" />
+        </div>
+      </div>
+
+      <label for="g_stops">정류장 (기점 → 종점, 단일 노선)</label>
+      <textarea id="g_stops">소사공영차고지
+소사역
+소사IC
+부천종합운동장
+부천시청
+부체대학교
+부천터미널
+송내동
+중동
+부평구청
+부평역 (1호선, 7호선)
+부평시장
+갈산역 (7호선)
+구산역 (6호선)
+킨텍스 제1전시장</textarea>
+
+      <label class="check">
+        <input id="g_showReturn" type="checkbox" />
+        회차 U턴 표시
+      </label>
+      <label class="check">
+        <input id="g_autoEnglish" type="checkbox" />
+        역 영어명 자동 표시
+      </label>
+
+      <div class="row">
+        <div>
+          <label for="g_interval">배차간격</label>
+          <input id="g_interval" value="30분" />
+        </div>
+        <div>
+          <label for="g_firstLast">첫차/막차</label>
+          <input id="g_firstLast" value="05:00 ~ 22:40" />
+        </div>
+      </div>
+
+      <label for="g_operator">문의처1</label>
+      <input id="g_operator" value="부천교통 032-329-5600" />
+      <label for="g_contact2">문의처2</label>
+      <input id="g_contact2" value="소사공영차고지 032-326-1690" />
+
+      <label for="g_stopsPerRow">한 줄 정류장 수 (0=자동)</label>
+      <input id="g_stopsPerRow" type="number" min="0" max="30" value="0" />
+
+      <div class="actions">
+        <button type="button" id="g_renderBtn">적용</button>
+        <button type="button" id="g_svgBtn" class="secondary">SVG 저장</button>
+        <button type="button" id="g_pngBtn" class="secondary">PNG 저장</button>
+        <button type="button" id="g_sample169Btn" class="secondary">169 예시</button>
+        <button type="button" id="g_sample62Btn" class="secondary">6-2 예시</button>
+      </div>
+
+      <p class="hint">
+        <strong>경기도 전용:</strong> 정류장을 <strong>한 줄(기점→종점)</strong>로 입력합니다. 노선이 <strong>뱀처럼 접히는</strong> 단일 레이아웃입니다.
       </p>
     </section>
 
@@ -319,474 +684,919 @@
       <div class="sheet" id="sheet"></div>
     </section>
   </main>
-
   <script>
-    const $ = (id) => document.getElementById(id);
+/* eslint-disable no-unused-vars */
+const Shared = (() => {
+  const transferColors = {
+    "1": "#0d77bd", "2": "#18a64f", "3": "#f28c28", "4": "#1596d2",
+    "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
+    "9": "#b2a57b", "경의": "#66b68a", "경의중앙": "#66b68a", "공항": "#00a1b5",
+    "신분당": "#d4003b", "경춘": "#00a84d", "서해": "#8fc31f", "경강": "#005bac",
+    "용인에버라인": "#56ad2d", "GTX-A": "#a76ab0", "GTX-B": "#a76ab0"
+  };
 
-    const transferColors = {
-      "1": "#0d77bd", "2": "#18a64f", "3": "#f28c28", "4": "#1596d2",
-      "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
-      "9": "#b2a57b", "경의": "#66b68a", "경의중앙": "#66b68a", "공항": "#00a1b5",
-      "신분당": "#d4003b", "경춘": "#00a84d", "서해": "#8fc31f", "경강": "#005bac",
-      "용인에버라인": "#56ad2d", "GTX-A": "#a76ab0"
-    };
+  const lineNames = {
+    "1": "지하철1호선", "2": "지하철2호선", "3": "지하철3호선", "4": "지하철4호선",
+    "5": "지하철5호선", "6": "지하철6호선", "7": "지하철7호선", "8": "지하철8호선",
+    "9": "지하철9호선", "경의": "경의중앙선", "경의중앙": "경의중앙선", "공항": "공항철도",
+    "신분당": "신분당선", "경춘": "경춘선", "서해": "서해선", "경강": "경강선",
+    "용인에버라인": "용인에버라인", "GTX-A": "GTX-A", "GTX-B": "GTX-B"
+  };
 
-    const lineNames = {
-      "1": "지하철1호선", "2": "지하철2호선", "3": "지하철3호선", "4": "지하철4호선",
-      "5": "지하철5호선", "6": "지하철6호선", "7": "지하철7호선", "8": "지하철8호선",
-      "9": "지하철9호선", "경의": "경의중앙선", "경의중앙": "경의중앙선", "공항": "공항철도",
-      "신분당": "신분당선", "경춘": "경춘선", "서해": "서해선", "경강": "경강선",
-      "용인에버라인": "용인에버라인", "GTX-A": "GTX-A"
-    };
+  const lineLabels = {
+    "경의": "경의", "경의중앙": "경의", "공항": "공", "신분당": "신",
+    "경춘": "춘", "서해": "서", "경강": "강", "용인에버라인": "용",
+    "GTX-A": "A", "GTX-B": "B"
+  };
 
-    const lineLabels = {
-      "경의": "경의", "경의중앙": "경의", "공항": "공",
-      "신분당": "신", "경춘": "춘", "서해": "서", "경강": "강",
-      "용인에버라인": "용", "GTX-A": "A"
-    };
+  const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "신분당", "경춘", "경의중앙", "경의", "공항", "서해", "경강", "용인에버라인", "GTX-A", "GTX-B"];
 
-    const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "신분당", "경춘", "경의중앙", "경의", "공항", "서해", "경강", "용인에버라인", "신림", "GTX-A"];
+  const stationEnglish = {
+    "서울역": "Seoul Station", "신정네거리역": "Sinjeongnegeori Station",
+    "양천구청역": "Yangcheon-gu Office Station", "오목교역": "Omokgyo Station",
+    "선유도역": "Seonyudo Station", "당산역": "Dangsan Station",
+    "구로디지털단지역": "Guro Digital Complex Station", "신풍역": "Sinpung Station",
+    "부평역": "Bupyeong Station", "갈산역": "Galsan Station", "구산역": "Gusan Station"
+  };
 
-    function sortLines(lines) {
-      return [...lines].sort((a, b) => {
-        const ai = lineOrder.indexOf(a);
-        const bi = lineOrder.indexOf(b);
-        if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-        return String(a).localeCompare(String(b), "ko");
+  function sortLines(lines) {
+    return [...lines].sort((a, b) => {
+      const ai = lineOrder.indexOf(a);
+      const bi = lineOrder.indexOf(b);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      return String(a).localeCompare(String(b), "ko");
+    });
+  }
+
+  function esc(text) {
+    return String(text ?? "").replace(/[&<>"']/g, (m) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[m]));
+  }
+
+  function normalizeLineToken(token) {
+    const cleaned = token.replace(/지하철/g, "").replace(/호선/g, "").replace(/신정지선/g, "").replace(/선/g, "").replace(/[()]/g, "").trim();
+    const match = cleaned.match(/GTX-[AB]|용인에버라인|경의중앙|신분당|경춘|서해|경강|[1-9]|경의|공항/);
+    return match ? match[0] : "";
+  }
+
+  function extractStationKey(name) {
+    const matches = [...name.matchAll(/[가-힣A-Za-z0-9·]+?역(?=$|[0-9]|번|출구|·|\s|[.,/()-])/g)]
+      .map((m) => m[0].replace(/[·]/g, ""));
+    return matches.at(-1) || "";
+  }
+
+  function romanizeHangul(text) {
+    const choseong = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+    const jungseong = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
+    const jongseong = ["", "k", "k", "ks", "n", "nj", "nh", "t", "l", "lk", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "t", "t", "ng", "t", "t", "k", "t", "p", "t"];
+    const parts = [...text].map((ch) => {
+      const code = ch.charCodeAt(0) - 0xac00;
+      if (code < 0 || code > 11171) return ch === "·" ? " " : ch;
+      const cho = Math.floor(code / 588);
+      const jung = Math.floor((code % 588) / 28);
+      const jong = code % 28;
+      return choseong[cho] + jungseong[jung] + jongseong[jong];
+    }).join(" ").replace(/\s+/g, " ").trim();
+    return parts.replace(/\b[a-z]/g, (m) => m.toUpperCase());
+  }
+
+  function inferEnglish(stopName, style = "seoul") {
+    const key = extractStationKey(stopName);
+    if (stationEnglish[key]) return stationEnglish[key];
+    if (!key) return "";
+    const base = romanizeHangul(key.replace(/역$/, ""));
+    return style === "gg" ? `${base} Stn.` : `${base} Station`;
+  }
+
+  function parseTransfersFromParentheses(text) {
+    const transfers = [];
+    const without = text.replace(/\(([^)]*)\)/g, (_, inner) => {
+      if (inner.includes("중")) return `(${inner})`;
+      inner.split(/[,/ ]+/).forEach((piece) => {
+        const token = normalizeLineToken(piece);
+        if (token) transfers.push(token);
       });
+      return "";
+    });
+    return { text: without.trim(), transfers };
+  }
+
+  function extractInlineRailStation(text) {
+    const match = text.match(/([1-9])호선\s*([가-힣A-Za-z0-9·]+?역)(?=$|[0-9]|번|출구|·|\s|[.,/()-])/);
+    if (!match) return { text, transfers: [] };
+    return { text: text.slice(match.index + match[1].length + 2).trim(), transfers: [match[1]] };
+  }
+
+  function parseStopLine(line, opts = {}) {
+    const { autoEnglish = false, englishStyle = "seoul" } = opts;
+    let raw = line.trim();
+    let manualEnglish = "";
+    let isMedian = false;
+
+    raw = raw.replace(/\[([^\]]+)\]/g, (_, inner) => {
+      manualEnglish = inner.trim();
+      return "";
+    }).trim();
+
+    if (/\(중\)/.test(raw)) {
+      isMedian = true;
+      raw = raw.replace(/\(중\)/g, "").trim();
     }
 
-    const stationEnglish = {
-      "서울역": "Seoul Station",
-      "신정네거리역": "Sinjeongnegeori Station",
-      "양천구청역": "Yangcheon-gu Office Station",
-      "오목교역": "Omokgyo Station",
-      "선유도역": "Seonyudo Station",
-      "당산역": "Dangsan Station",
-      "구로디지털단지역": "Guro Digital Complex Station",
-      "신풍역": "Sinpung Station",
-      "석수역": "Seoksu Station",
-      "광명역": "Gwangmyeong Station",
-      "보라매역": "Boramae Station",
-      "여의도역": "Yeouido Station",
-      "여의나루역": "Yeouinaru Station",
-      "목동역": "Mok-dong Station",
-      "신도림역": "Sindorim Station",
-      "영등포구청역": "Yeongdeungpo-gu Office Station"
+    const parts = raw.split("|").map((v) => v.trim());
+    raw = parts[0] || "";
+    const pipeTransfers = (parts[1] || "").split(",").map(normalizeLineToken).filter(Boolean);
+    if (parts[2]) manualEnglish = parts[2];
+
+    const extracted = parseTransfersFromParentheses(raw);
+    const inlineRail = extractInlineRailStation(extracted.text);
+    const transfers = sortLines(Array.from(new Set(pipeTransfers.concat(extracted.transfers, inlineRail.transfers))));
+    const name = inlineRail.text.replace(/\s+/g, " ").trim();
+    const english = manualEnglish || (autoEnglish ? inferEnglish(name, englishStyle) : "");
+
+    return {
+      name, english, transfers, isMedian,
+      isStation: transfers.length > 0 || Boolean(extractStationKey(name))
     };
+  }
 
-    const sampleData = {};
+  function parseStops(text, opts) {
+    return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => parseStopLine(line, opts));
+  }
 
-    function esc(text) {
-      return String(text ?? "").replace(/[&<>"']/g, (m) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-      }[m]));
-    }
+  function marker(x, y, fill, label = "", size = 20) {
+    const labelLength = [...String(label)].length;
+    const fontSize = labelLength <= 1 ? size * 0.54 : labelLength <= 2 ? size * 0.42 : size * 0.32;
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="${size / 2}" fill="${fill}" stroke="#151515" stroke-width="2"/>
+      ${label ? `<text x="${x}" y="${y + size * 0.18}" text-anchor="middle" font-size="${Math.max(5.8, fontSize)}" font-weight="900" fill="#fff">${esc(label)}</text>` : ""}
+    </g>`;
+  }
 
-    function normalizeLineToken(token) {
-      const cleaned = token
-        .replace(/지하철/g, "")
-        .replace(/호선/g, "")
-        .replace(/신정지선/g, "")
-        .replace(/선/g, "")
-        .replace(/[()]/g, "")
-        .trim();
-      const match = cleaned.match(/GTX-A|용인에버라인|경의중앙|신분당|경춘|서해|경강|[1-9]|경의|공항/);
-      return match ? match[0] : "";
-    }
+  function download(name, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-    function extractStationKey(name) {
-      const matches = [...name.matchAll(/[가-힣A-Za-z0-9·]+?역(?=$|[0-9]|번|출구|·|\s|[.,/()-])/g)]
-        .map((m) => m[0].replace(/[·]/g, ""));
-      return matches.at(-1) || "";
-    }
+  function saveSvg(prefix) {
+    const svg = document.getElementById("routeSvg");
+    if (!svg) return;
+    download(`${prefix}.svg`, new Blob([svg.outerHTML], { type: "image/svg+xml" }));
+  }
 
-    function inferEnglish(stopName) {
-      const key = extractStationKey(stopName);
-      if (stationEnglish[key]) return stationEnglish[key];
-      if (!key) return "";
-      return `${romanizeHangul(key.replace(/역$/, ""))} Station`;
-    }
+  function savePng(prefix) {
+    const svg = document.getElementById("routeSvg");
+    if (!svg) return;
+    const xml = new XMLSerializer().serializeToString(svg);
+    const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml" }));
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scale = 2;
+      canvas.width = svg.viewBox.baseVal.width * scale;
+      canvas.height = svg.viewBox.baseVal.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => download(`${prefix}.png`, blob));
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
 
-    function romanizeHangul(text) {
-      const choseong = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
-      const jungseong = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
-      const jongseong = ["", "k", "k", "ks", "n", "nj", "nh", "t", "l", "lk", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "t", "t", "ng", "t", "t", "k", "t", "p", "t"];
-      const parts = [...text].map((ch) => {
-        const code = ch.charCodeAt(0) - 0xac00;
-        if (code < 0 || code > 11171) return ch === "·" ? " " : ch;
-        const cho = Math.floor(code / 588);
-        const jung = Math.floor((code % 588) / 28);
-        const jong = code % 28;
-        return choseong[cho] + jungseong[jung] + jongseong[jong];
-      }).join(" ").replace(/\s+/g, " ").trim();
-      return parts.replace(/\b[a-z]/g, (m) => m.toUpperCase());
-    }
+  return {
+    transferColors, lineNames, lineLabels, lineOrder, stationEnglish,
+    sortLines, esc, normalizeLineToken, extractStationKey, romanizeHangul,
+    inferEnglish, parseTransfersFromParentheses, parseStopLine, parseStops,
+    marker, download, saveSvg, savePng
+  };
+})();
+const SeoulEngine = (() => {
+  const { esc, parseStops, marker, transferColors, lineNames, lineLabels, sortLines, extractStationKey } = Shared;
+  const $ = (id) => document.getElementById(id);
 
-    function parseTransfersFromParentheses(text) {
-      const transfers = [];
-      const without = text.replace(/\(([^)]*)\)/g, (_, inner) => {
-        inner.split(/[,/ ]+/).forEach((piece) => {
-          const token = normalizeLineToken(piece);
-          if (token) transfers.push(token);
-        });
-        return "";
-      });
-      return { text: without.trim(), transfers };
-    }
+  function linePath(points) {
+    return points.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ");
+  }
 
-    function extractInlineRailStation(text) {
-      const match = text.match(/([1-9])호선\s*([가-힣A-Za-z0-9·]+?역)(?=$|[0-9]|번|출구|·|\s|[.,/()-])/);
-      if (!match) return { text, transfers: [] };
-      return {
-        text: text.slice(match.index + match[1].length + 2).trim(),
-        transfers: [match[1]]
-      };
-    }
+  function uTurnSvg(x, y, fill, side = "right") {
+    const flip = side === "left" ? -1 : 1;
+    return `<g transform="translate(${x} ${y}) scale(${flip} 1)">
+      <path d="M -12 0 A 12 12 0 0 1 12 0" fill="none" stroke="${fill}" stroke-width="4" stroke-linecap="round"/>
+      <polygon points="14,-2 6,-8 6,4" fill="${fill}"/>
+    </g>`;
+  }
 
-    function parseStopLine(line) {
-      let raw = line.trim();
-      let manualEnglish = "";
-      raw = raw.replace(/\[([^\]]+)\]/g, (_, inner) => {
-        manualEnglish = inner.trim();
-        return "";
-      }).trim();
+  function turnaroundMark(x, y, fill, labelSide = "right") {
+    const textX = labelSide === "right" ? x + 20 : x - 20;
+    const anchor = labelSide === "right" ? "start" : "end";
+    return `<g>
+      ${uTurnSvg(x, y, fill, labelSide)}
+      <text x="${textX}" y="${y + 7}" text-anchor="${anchor}" font-size="16" font-weight="900" fill="${fill}">회차</text>
+    </g>`;
+  }
 
-      const parts = raw.split("|").map((v) => v.trim());
-      raw = parts[0] || "";
-      const pipeTransfers = (parts[1] || "").split(",").map(normalizeLineToken).filter(Boolean);
-      if (parts[2]) manualEnglish = parts[2];
+  function angleBetween(a, b) {
+    return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  }
 
-      const extracted = parseTransfersFromParentheses(raw);
-      const inlineRail = extractInlineRailStation(extracted.text);
-      const transfers = sortLines(Array.from(new Set(pipeTransfers.concat(extracted.transfers, inlineRail.transfers))));
-      const name = inlineRail.text.replace(/\s+/g, " ").trim();
-      const english = manualEnglish || ($("autoEnglish").checked ? inferEnglish(name) : "");
-      const stationKey = extractStationKey(name);
+  function mapEndpointMarker(x, y, fill, angle = 0) {
+    return `<g transform="rotate(${angle} ${x} ${y})">
+      <path d="M ${x - 10} ${y} A 10 10 0 0 1 ${x + 10} ${y}" fill="none" stroke="${fill}" stroke-width="3.5"/>
+      <polygon points="${x + 12},${y - 2} ${x + 5},${y - 7} ${x + 5},${y + 3}" fill="${fill}"/>
+    </g>`;
+  }
 
-      return {
-        name,
-        english,
-        transfers,
-        isStation: transfers.length > 0 || Boolean(stationKey)
-      };
-    }
+  function transferStack(x, y, transfers, side = "below", compact = false) {
+    if (!transfers.length) return "";
+    const direction = side === "above" ? -1 : 1;
+    const firstOffset = compact ? 18 : 18;
+    const step = compact ? 20 : 20;
+    const connector = `<line x1="${x}" y1="${y + direction * 5}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`;
+    return `<g>${connector}${transfers.map((t, i) => {
+      const ty = y + direction * (firstOffset + i * step);
+      return marker(x, ty, transferColors[t] || "#777", lineLabels[t] || t, 18);
+    }).join("")}</g>`;
+  }
 
-    function formatFirstLast(value) {
-      const times = String(value).match(/\d{1,2}:\d{2}/g) || [];
-      if (times.length >= 2) return `첫차 ${times[0]} - 막차 ${times[1]} (차고지 기준)`;
-      return value ? `첫차 ${value} - 막차 (차고지 기준)` : "";
-    }
+  function labelBlock(x, y, stop, side = "above") {
+    const angle = -45;
+    const dy = -17;
+    const nameLength = [...stop.name].length;
+    const fontSize = nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
+    const labelX = x + 8;
+    const labelY = y + dy;
+    const english = stop.english
+      ? `<tspan x="${labelX}" dy="11" font-size="8.2" font-weight="700" fill="#333">${esc(stop.english)}</tspan>`
+      : "";
+    return `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">
+      <tspan x="${labelX}">${esc(stop.name)}</tspan>${english}
+    </text>`;
+  }
 
-    function parseStops(text) {
-      return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map(parseStopLine);
-    }
+  function stopNode(x, y, stop, routeColor, rowSide) {
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="5.1" fill="#fff" stroke="#111" stroke-width="2.2"/>
+      ${labelBlock(x, y, stop, rowSide === "top" ? "above" : "above")}
+      ${transferStack(x, y, stop.transfers, "below", stop.transfers.length > 1)}
+    </g>`;
+  }
 
-    function marker(x, y, fill, label = "", size = 20) {
-      const labelLength = [...String(label)].length;
-      const fontSize = labelLength <= 1 ? size * 0.54 : labelLength <= 2 ? size * 0.42 : size * 0.32;
-      return `<g>
-        <circle cx="${x}" cy="${y}" r="${size / 2}" fill="${fill}" stroke="#151515" stroke-width="2"/>
-        ${label ? `<text x="${x}" y="${y + size * 0.18}" text-anchor="middle" font-size="${Math.max(5.8, fontSize)}" font-weight="900" fill="#fff">${esc(label)}</text>` : ""}
-      </g>`;
-    }
+  function labelWidthEstimate(stop) {
+    const longest = [...stop.name].length;
+    const englishUnits = stop.english ? Math.min(24, stop.english.length * 0.42) : 0;
+    const transferBoost = stop.transfers.length > 1 ? 10 : 0;
+    return Math.max(48, Math.min(92, longest * 4.15 + englishUnits + transferBoost));
+  }
 
-    function linePath(points) {
-      return points.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ");
-    }
-
-    function uTurnIcon(x, y, fill) {
-      const isBlue = fill.toLowerCase() === "#0872bd";
-      const href = isBlue ? "./turnaround-blue.png" : "./turnaround-green.png";
-      const viewBox = isBlue ? "30 0 26 30" : "34 2 34 36";
-      return `<svg x="${x - 15}" y="${y - 15}" width="30" height="30" viewBox="${viewBox}" overflow="hidden">
-        <image href="${href}" x="0" y="0" width="${isBlue ? 56 : 69}" height="${isBlue ? 30 : 40}" preserveAspectRatio="none"/>
-      </svg>`;
-    }
-
-    function turnaroundMark(x, y, fill, labelSide = "right") {
-      const textX = labelSide === "right" ? x + 20 : x - 20;
-      const anchor = labelSide === "right" ? "start" : "end";
-      return `<g>
-        ${uTurnIcon(x, y, fill)}
-        <text x="${textX}" y="${y + 7}" text-anchor="${anchor}" font-size="16" font-weight="900" fill="${fill}">회차</text>
-      </g>`;
-    }
-
-    function angleBetween(a, b) {
-      return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-    }
-
-    function mapEndpointMarker(x, y, fill, angle = 0) {
-      const isBlue = fill.toLowerCase() === "#0872bd";
-      const href = isBlue ? "./uturn-blue.png" : "./uturn-green.png";
-      const w = isBlue ? 26 : 33;
-      const h = isBlue ? 27 : 34;
-      return `<image href="${href}" x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" transform="rotate(${angle} ${x} ${y})" preserveAspectRatio="xMidYMid meet"/>`;
-    }
-
-    function transferStack(x, y, transfers, side = "below", compact = false) {
-      if (!transfers.length) return "";
-      const direction = side === "above" ? -1 : 1;
-      const firstOffset = compact ? 18 : 18;
-      const step = compact ? 20 : 20;
-      const connector = `<line x1="${x}" y1="${y + direction * 5}" x2="${x}" y2="${y + direction * (firstOffset + (transfers.length - 1) * step)}" stroke="#111" stroke-width="9" stroke-linecap="round"/>`;
-      return `<g>${connector}${transfers.map((t, i) => {
-        const ty = y + direction * (firstOffset + i * step);
-        return marker(x, ty, transferColors[t] || "#777", lineLabels[t] || t, 18);
-      }).join("")}</g>`;
-    }
-
-    function labelBlock(x, y, stop, side = "above") {
-      const angle = -45;
-      const dy = side === "above" ? -17 : -17;
-      const nameLength = [...stop.name].length;
-      const fontSize = nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
-      const labelX = x + 8;
-      const labelY = y + dy;
-      const english = stop.english
-        ? `<tspan x="${labelX}" dy="11" font-size="8.2" font-weight="700" fill="#333">${esc(stop.english)}</tspan>`
-        : "";
-      return `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="900" fill="#111">
-        <tspan x="${labelX}">${esc(stop.name)}</tspan>
-        ${english}
+  function directionTitle(x, y, titleA, titleB, routeColor, layout) {
+    if (layout === "single") {
+      return `<text x="${x}" y="${y + 23}" font-size="25" font-weight="900" fill="${routeColor}">
+        ${esc(titleA)} <tspan dx="12">→</tspan><tspan dx="12">${esc(titleB)}</tspan>
       </text>`;
     }
+    return `<text x="${x}" y="${y}" font-size="31" font-weight="900" fill="${routeColor}">${esc(titleA)}</text>
+      <text x="${x}" y="${y + 46}" font-size="31" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
+  }
 
-    function stopNode(x, y, stop, index, total, routeColor, rowSide) {
-      const multiTransfer = stop.transfers.length > 1;
-      const node = `<circle cx="${x}" cy="${y}" r="5.1" fill="#fff" stroke="#111" stroke-width="2.2"/>`;
-      const transferSide = "below";
-      return `<g>
-        ${node}
-        ${labelBlock(x, y, stop, rowSide === "top" ? "above" : "above")}
-        ${transferStack(x, y, stop.transfers, transferSide, multiTransfer)}
-      </g>`;
-    }
+  function routeRow(stops, y, x0, titleA, titleB, routeColor, rowSide, layout) {
+    const points = [];
+    let cursor = x0;
+    stops.forEach((stop, i) => {
+      points.push(cursor);
+      if (i < stops.length - 1) cursor += Math.max(50, labelWidthEstimate(stop), labelWidthEstimate(stops[i + 1]) * 0.62);
+    });
+    const endX = points.at(-1) || x0;
+    const labels = stops.map((stop, i) => stopNode(points[i], y, stop, routeColor, rowSide)).join("");
+    const isBottom = rowSide === "bottom";
+    const titleY = isBottom ? y - 110 : y - 92;
+    const returnX = isBottom ? x0 - 70 : endX + 48;
 
-    function labelWidthEstimate(stop) {
-      const longest = [...stop.name].length;
-      const englishUnits = stop.english ? Math.min(24, stop.english.length * 0.42) : 0;
-      const transferBoost = stop.transfers.length > 1 ? 10 : 0;
-      return Math.max(48, Math.min(92, longest * 4.15 + englishUnits + transferBoost));
-    }
-
-    function directionTitle(x, y, titleA, titleB, routeColor, layout) {
-      if (layout === "single") {
-        return `<text x="${x}" y="${y + 23}" font-size="25" font-weight="900" fill="${routeColor}">
-          ${esc(titleA)} <tspan dx="12">→</tspan><tspan dx="12">${esc(titleB)}</tspan>
-        </text>`;
-      }
-      return `<text x="${x}" y="${y}" font-size="31" font-weight="900" fill="${routeColor}">${esc(titleA)}</text>
-        <text x="${x}" y="${y + 46}" font-size="31" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
-    }
-
-    function routeRow(stops, y, x0, titleA, titleB, routeColor, rowSide, layout) {
-      const points = [];
-      let cursor = x0;
-      stops.forEach((stop, i) => {
-        points.push(cursor);
-        if (i < stops.length - 1) cursor += Math.max(50, labelWidthEstimate(stop), labelWidthEstimate(stops[i + 1]) * 0.62);
-      });
-      const endX = points.at(-1) || x0;
-      const labels = stops.map((stop, i) => stopNode(points[i], y, stop, i, stops.length, routeColor, rowSide)).join("");
-      const isBottom = rowSide === "bottom";
-      const titleY = isBottom ? y - 110 : y - 92;
-      const returnX = isBottom ? x0 - 70 : endX + 48;
-
-      return {
-        width: endX + 125,
-        svg: `<g>
-          ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
-          <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>
-          ${labels}
-          ${isBottom ? `${turnaroundMark(returnX, y, routeColor, "left")}<line x1="${returnX + 16}" y1="${y}" x2="${x0 - 8}" y2="${y}" stroke="#111" stroke-width="2" stroke-dasharray="4 4"/>` : `${turnaroundMark(returnX, y, routeColor, "right")}`}
-          <line x1="${x0}" y1="${y + 14}" x2="${x0}" y2="${y + 43}" stroke="#999" stroke-width="1.5" stroke-dasharray="4 4"/>
-          <text x="${x0 - 9}" y="${y + 62}" text-anchor="end" font-size="11" font-weight="800">서울(출발구)</text>
-        </g>`
-      };
-    }
-
-    function mapLabelForStop(stop, fallback) {
-      if (fallback) return fallback;
-      const station = extractStationKey(stop.name);
-      if (station) return station;
-      return stop.name.replace(/·.*$/, "").replace(/앞$|후문$|입구$/, "");
-    }
-
-    function chooseMapStops(stops, from, to) {
-      const important = stops.filter((s) => s.isStation);
-      const chosen = [
-        stops[0] ? { ...stops[0], mapLabel: from } : null,
-        ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s) })),
-        stops[stops.length - 1] ? { ...stops[stops.length - 1], mapLabel: to } : null
-      ].filter(Boolean);
-      const deduped = [];
-      chosen.forEach((s, i) => {
-        const key = s.mapLabel || s.name;
-        if (!deduped.some((d) => (d.mapLabel || d.name) === key)) deduped.push(s);
-      });
-      return deduped.slice(0, 8);
-    }
-
-    const mapWidth = 455;
-
-    function miniMap(stops, routeColor, from, to) {
-      const mapStops = chooseMapStops(stops, from, to);
-      const guide = [
-        { x: 206, y: 132 }, { x: 207, y: 166 }, { x: 192, y: 198 }, { x: 228, y: 226 },
-        { x: 169, y: 242 }, { x: 174, y: 274 }, { x: 144, y: 268 }, { x: 151, y: 293 },
-        { x: 136, y: 362 }, { x: 150, y: 413 }, { x: 158, y: 475 }, { x: 146, y: 525 },
-        { x: 162, y: 612 }, { x: 185, y: 650 }
-      ];
-      const coords = mapStops.map((_, i) => {
-        const t = mapStops.length <= 1 ? 0 : i / (mapStops.length - 1);
-        const pos = t * (guide.length - 1);
-        const lo = Math.floor(pos);
-        const hi = Math.min(guide.length - 1, lo + 1);
-        const mix = pos - lo;
-        return {
-          x: guide[lo].x + (guide[hi].x - guide[lo].x) * mix,
-          y: guide[lo].y + (guide[hi].y - guide[lo].y) * mix
-        };
-      });
-      const labels = mapStops.map((s, i) => {
-        const p = coords[i];
-        const label = s.mapLabel || mapLabelForStop(s);
-        const toLeft = p.x > 180;
-        const tx = toLeft ? p.x - 20 : p.x + 20;
-        const anchor = toLeft ? "end" : "start";
-        return `<g>
-          ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, i < 2 ? "below" : "above") : ""}
-          <text x="${tx}" y="${p.y + 6}" text-anchor="${anchor}" font-size="17" font-weight="900">${esc(label)}</text>
-        </g>`;
-      }).join("");
-
-      return `<g>
-        <rect x="0" y="0" width="${mapWidth}" height="740" fill="#fff"/>
-        <path d="M0 0 H123 L88 36 L164 116 L248 26 L248 0 H455 V210 L430 210 L393 253 H348 L316 281 H265 L226 322 H196 L165 355 H120 L84 394 H0 Z" fill="#b9bbbd"/>
-        <path d="M0 160 H42 V247 H5 V386 H0 Z" fill="#b9bbbd"/>
-        <path d="M0 514 L86 424 L86 360 L127 320 L127 567 L210 650 L210 740 H0 Z" fill="#b9bbbd"/>
-        <path d="M160 740 V666 L242 591 H305 L305 557 H455 V740 Z" fill="#b9bbbd"/>
-        <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
-        <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>
-        <path d="${linePath(guide)}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-        ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor, angleBetween(coords[0], coords[1] || coords[0])) : ""}
-        ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor, angleBetween(coords.at(-1), coords.at(-2) || coords.at(-1))) : ""}
+    return {
+      width: endX + 125,
+      svg: `<g>
+        ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
+        <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>
         ${labels}
-        <rect x="32" y="32" width="120" height="120" fill="#fff" stroke="#666" stroke-width="2"/>
-        <path d="M46 104 L82 64 L122 78 L150 50 V152 H32 V128 Z" fill="#9a9d9f"/>
-        <path d="M48 126 C66 82, 92 142, 136 82" fill="none" stroke="#fff" stroke-width="9"/>
-        <path d="M51 126 C68 84, 93 140, 134 82" fill="none" stroke="#111" stroke-width="3"/>
-        <rect x="67" y="83" width="49" height="43" fill="none" stroke="#13a84b" stroke-width="4"/>
-      </g>`;
-    }
+        ${isBottom
+          ? `${turnaroundMark(returnX, y, routeColor, "left")}<line x1="${returnX + 16}" y1="${y}" x2="${x0 - 8}" y2="${y}" stroke="#111" stroke-width="2" stroke-dasharray="4 4"/>`
+          : `${turnaroundMark(returnX, y, routeColor, "right")}`}
+        <line x1="${x0}" y1="${y + 14}" x2="${x0}" y2="${y + 43}" stroke="#999" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <text x="${x0 - 9}" y="${y + 62}" text-anchor="end" font-size="11" font-weight="800">서울(출발구)</text>
+      </g>`
+    };
+  }
 
-    function legend(transfers) {
-      const items = sortLines(Array.from(new Set(transfers))).slice(0, 10);
-      return `<g transform="translate(406 220)">
-        ${items.map((t, i) => {
-          const y = i * 28;
-          return `${marker(0, y, transferColors[t] || "#777", lineLabels[t] || t, 18)}
-            <text x="22" y="${y + 5}" font-size="14" font-weight="800">${esc(lineNames[t] || t)}</text>`;
-        }).join("")}
-      </g>`;
-    }
+  function mapLabelForStop(stop, fallback) {
+    if (fallback) return fallback;
+    const station = extractStationKey(stop.name);
+    if (station) return station;
+    return stop.name.replace(/·.*$/, "").replace(/앞$|후문$|입구$/, "");
+  }
 
-    function render() {
-      const routeNo = $("routeNo").value.trim() || "0000";
-      const routeColor = $("routeColor").value;
-      const from = $("from").value.trim() || "기점";
-      const to = $("to").value.trim() || "종점";
-      const directionLayout = $("directionLayout").value;
-      const showWatermark = $("adminPassword").value !== "5263815731";
-      const outbound = parseStops($("outbound").value);
-      const inboundText = $("inbound").value.trim();
-      const inbound = inboundText ? parseStops(inboundText) : ($("autoReverse").checked ? [...outbound].reverse() : []);
-      const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
+  function chooseMapStops(stops, from, to) {
+    const important = stops.filter((s) => s.isStation);
+    const chosen = [
+      stops[0] ? { ...stops[0], mapLabel: from } : null,
+      ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s) })),
+      stops.at(-1) ? { ...stops.at(-1), mapLabel: to } : null
+    ].filter(Boolean);
+    const deduped = [];
+    chosen.forEach((s) => {
+      const key = s.mapLabel || s.name;
+      if (!deduped.some((d) => (d.mapLabel || d.name) === key)) deduped.push(s);
+    });
+    return deduped.slice(0, 8);
+  }
 
-      const x0 = 980;
-      const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout);
-      const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout);
-      const width = Math.max(1500, top.width, bottom.width);
-      const height = 740;
+  const mapWidth = 455;
 
-      $("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="버스 노선도">
-        <rect width="${width}" height="${height}" fill="#fff"/>
-        ${miniMap(outbound, routeColor, from, to)}
-        <line x1="${mapWidth}" y1="0" x2="${mapWidth}" y2="${height}" stroke="#adb3ba" stroke-width="2"/>
-        <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
-        <g transform="translate(98 0)">${legend(allTransfers)}</g>
-        <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("interval").value)}</text>
-        <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("firstLast").value))}</text>
-        <text x="486" y="684" font-size="15" font-weight="1000">${esc($("operator").value)}</text>
-        ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
-        ${top.svg}
-        ${bottom.svg}
-      </svg>`;
-    }
-
-    function download(name, blob) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function saveSvg() {
-      download(`bus-route-${$("routeNo").value || "template"}.svg`, new Blob([$("routeSvg").outerHTML], { type: "image/svg+xml" }));
-    }
-
-    function savePng() {
-      const svg = $("routeSvg");
-      const xml = new XMLSerializer().serializeToString(svg);
-      const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml" }));
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const scale = 2;
-        canvas.width = svg.viewBox.baseVal.width * scale;
-        canvas.height = svg.viewBox.baseVal.height * scale;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => download(`bus-route-${$("routeNo").value || "template"}.png`, blob));
-        URL.revokeObjectURL(url);
+  function miniMap(stops, routeColor, from, to) {
+    const mapStops = chooseMapStops(stops, from, to);
+    const guide = [
+      { x: 206, y: 132 }, { x: 207, y: 166 }, { x: 192, y: 198 }, { x: 228, y: 226 },
+      { x: 169, y: 242 }, { x: 174, y: 274 }, { x: 144, y: 268 }, { x: 151, y: 293 },
+      { x: 136, y: 362 }, { x: 150, y: 413 }, { x: 158, y: 475 }, { x: 146, y: 525 },
+      { x: 162, y: 612 }, { x: 185, y: 650 }
+    ];
+    const coords = mapStops.map((_, i) => {
+      const t = mapStops.length <= 1 ? 0 : i / (mapStops.length - 1);
+      const pos = t * (guide.length - 1);
+      const lo = Math.floor(pos);
+      const hi = Math.min(guide.length - 1, lo + 1);
+      const mix = pos - lo;
+      return {
+        x: guide[lo].x + (guide[hi].x - guide[lo].x) * mix,
+        y: guide[lo].y + (guide[hi].y - guide[lo].y) * mix
       };
-      img.src = url;
+    });
+    const labels = mapStops.map((s, i) => {
+      const p = coords[i];
+      const label = s.mapLabel || mapLabelForStop(s);
+      const toLeft = p.x > 180;
+      const tx = toLeft ? p.x - 20 : p.x + 20;
+      const anchor = toLeft ? "end" : "start";
+      return `<g>
+        ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, i < 2 ? "below" : "above") : ""}
+        <text x="${tx}" y="${p.y + 6}" text-anchor="${anchor}" font-size="17" font-weight="900">${esc(label)}</text>
+      </g>`;
+    }).join("");
+
+    return `<g>
+      <rect x="0" y="0" width="${mapWidth}" height="740" fill="#fff"/>
+      <path d="M0 0 H123 L88 36 L164 116 L248 26 L248 0 H455 V210 L430 210 L393 253 H348 L316 281 H265 L226 322 H196 L165 355 H120 L84 394 H0 Z" fill="#b9bbbd"/>
+      <path d="M0 160 H42 V247 H5 V386 H0 Z" fill="#b9bbbd"/>
+      <path d="M0 514 L86 424 L86 360 L127 320 L127 567 L210 650 L210 740 H0 Z" fill="#b9bbbd"/>
+      <path d="M160 740 V666 L242 591 H305 L305 557 H455 V740 Z" fill="#b9bbbd"/>
+      <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
+      <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>
+      <path d="${linePath(guide)}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor, angleBetween(coords[0], coords[1] || coords[0])) : ""}
+      ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor, angleBetween(coords.at(-1), coords.at(-2) || coords.at(-1))) : ""}
+      ${labels}
+      <rect x="32" y="32" width="120" height="120" fill="#fff" stroke="#666" stroke-width="2"/>
+      <path d="M46 104 L82 64 L122 78 L150 50 V152 H32 V128 Z" fill="#9a9d9f"/>
+      <path d="M48 126 C66 82, 92 142, 136 82" fill="none" stroke="#fff" stroke-width="9"/>
+      <path d="M51 126 C68 84, 93 140, 134 82" fill="none" stroke="#111" stroke-width="3"/>
+      <rect x="67" y="83" width="49" height="43" fill="none" stroke="#13a84b" stroke-width="4"/>
+    </g>`;
+  }
+
+  function legend(transfers) {
+    const items = sortLines(Array.from(new Set(transfers))).slice(0, 10);
+    return `<g transform="translate(406 220)">
+      ${items.map((t, i) => {
+        const y = i * 28;
+        return `${marker(0, y, transferColors[t] || "#777", lineLabels[t] || t, 18)}
+          <text x="22" y="${y + 5}" font-size="14" font-weight="800">${esc(lineNames[t] || t)}</text>`;
+      }).join("")}
+    </g>`;
+  }
+
+  function formatFirstLast(value) {
+    const times = String(value).match(/\d{1,2}:\d{2}/g) || [];
+    if (times.length >= 2) return `첫차 ${times[0]} - 막차 ${times[1]} (차고지 기준)`;
+    return value ? `첫차 ${value} - 막차 (차고지 기준)` : "";
+  }
+
+  function render() {
+    const routeNo = $("s_routeNo").value.trim() || "0000";
+    const routeColor = $("s_routeColor").value;
+    const from = $("s_from").value.trim() || "기점";
+    const to = $("s_to").value.trim() || "종점";
+    const directionLayout = $("s_directionLayout").value;
+    const showWatermark = $("s_adminPassword").value !== "5263815731";
+    const opts = { autoEnglish: $("s_autoEnglish").checked, englishStyle: "seoul" };
+    const outbound = parseStops($("s_outbound").value, opts);
+    const inboundText = $("s_inbound").value.trim();
+    const inbound = inboundText
+      ? parseStops(inboundText, opts)
+      : ($("s_autoReverse").checked ? [...outbound].reverse() : []);
+
+    const x0 = 980;
+    const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout);
+    const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout);
+    const width = Math.max(1500, top.width, bottom.width);
+    const height = 740;
+    const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
+
+    document.getElementById("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="서울 버스 노선도">
+      <rect width="${width}" height="${height}" fill="#fff"/>
+      ${miniMap(outbound, routeColor, from, to)}
+      <line x1="${mapWidth}" y1="0" x2="${mapWidth}" y2="${height}" stroke="#adb3ba" stroke-width="2"/>
+      <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
+      <g transform="translate(98 0)">${legend(allTransfers)}</g>
+      <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("s_interval").value)}</text>
+      <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("s_firstLast").value))}</text>
+      <text x="486" y="684" font-size="15" font-weight="1000">${esc($("s_operator").value)}</text>
+      ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
+      ${top.svg}
+      ${bottom.svg}
+    </svg>`;
+  }
+
+  const sample5620 = {
+    s_routeNo: "5620", s_routeColor: "#13a84b", s_from: "시흥", s_to: "선유도역",
+    s_directionLayout: "single",
+    s_interval: "8분(평일), 10분(주말), 11분(공휴일)",
+    s_firstLast: "04:30 ~ 23:10", s_operator: "도원교통 02-2612-3516",
+    s_inbound: ""
+  };
+
+  function applySample(data) {
+    Object.entries(data).forEach(([key, value]) => {
+      const el = $(key);
+      if (el) el.value = value;
+    });
+    $("s_autoReverse").checked = true;
+    render();
+  }
+
+  function bind() {
+    ["s_routeNo", "s_routeColor", "s_from", "s_to", "s_directionLayout", "s_outbound", "s_inbound",
+      "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish"]
+      .forEach((id) => $(id).addEventListener("input", () => App.renderIfActive("seoul")));
+    $("s_renderBtn").addEventListener("click", render);
+    $("s_svgBtn").addEventListener("click", () => Shared.saveSvg(`seoul-bus-route-${$("s_routeNo").value || "template"}`));
+    $("s_pngBtn").addEventListener("click", () => Shared.savePng(`seoul-bus-route-${$("s_routeNo").value || "template"}`));
+    $("s_sampleBtn").addEventListener("click", () => applySample(sample5620));
+  }
+
+  return { render, bind, applySample };
+})();
+const GyeonggiEngine = (() => {
+  const { esc, parseStops, transferColors, lineLabels } = Shared;
+  const $ = (id) => document.getElementById(id);
+
+  // G BUS 신도색 가이드라인 (나무위키·경기도 공공관리제 도색 기준)
+  const routeTypeColors = {
+    "11": "#ee2737", "12": "#0085ca", "13": "#009775", "13n": "#18bf74",
+    "intercity": "#3c96d5", "seat": "#27c7d8", "14": "#00bfff", "15": "#005dab",
+    "16": "#f28c28", "21": "#009775", "22": "#0085ca", "30": "#f2a900", "30n": "#fed70f",
+    "lime": "#9ad84e", "sky": "#27c7d8", "cyan": "#00a1b5", "yellow": "#fed70f",
+    "custom": "#b62367", "premium": "#85714d", "pgh": "#6c56a1", "gm": "#273746"
+  };
+
+  const routeTypeNames = {
+    "11": "직행좌석형시내버스", "12": "좌석형시내버스", "13": "일반형시내버스(단일시군)",
+    "13n": "일반형시내버스(신도색)", "intercity": "시군간 일반버스", "seat": "일반좌석버스",
+    "14": "광역급행형시내버스", "15": "따복형·똑버스", "16": "경기순환버스",
+    "21": "일반형농어촌버스", "22": "좌석형농어촌버스", "30": "마을버스", "30n": "마을버스(신도색)",
+    "lime": "연두", "sky": "하늘", "cyan": "청록", "yellow": "노랑",
+    "custom": "맞춤형버스", "premium": "프리미엄버스", "pgh": "편하G버스", "gm": "굿모닝·2층버스"
+  };
+
+  function getRouteColor() {
+    const type = $("g_routeType").value;
+    if (type === "manual") return $("g_routeColor").value;
+    return routeTypeColors[type] || "#009775";
+  }
+
+  function formatFirstLast(value) {
+    const times = String(value).match(/\d{1,2}:\d{2}/g) || [];
+    if (times.length >= 2) return `첫차 - ${times[0]}  막차 - ${times[1]}`;
+    return value;
+  }
+
+  function labelWidthEstimate(stop) {
+    const longest = [...stop.name].length + (stop.isMedian ? 3 : 0);
+    return Math.max(58, Math.min(110, longest * 5.2 + (stop.transfers.length ? 14 : 0)));
+  }
+
+  function chunkStops(stops, perRow, usableWidth) {
+    const auto = perRow <= 0;
+    const rows = [];
+    let i = 0;
+    while (i < stops.length) {
+      let count = auto ? 1 : perRow;
+      if (auto) {
+        let width = 0;
+        count = 0;
+        while (i + count < stops.length) {
+          const w = labelWidthEstimate(stops[i + count]);
+          if (count > 0 && width + w > usableWidth) break;
+          width += w;
+          count++;
+          if (count >= 18) break;
+        }
+        count = Math.max(1, count);
+      }
+      rows.push(stops.slice(i, i + count));
+      i += count;
+    }
+    return rows;
+  }
+
+  function rowPositions(rowStops, y, xStart, xEnd, rtl) {
+    const totalWidth = xEnd - xStart;
+    const widths = rowStops.map(labelWidthEstimate);
+    const sum = widths.reduce((a, b) => a + b, 0);
+    const gap = Math.max(0, (totalWidth - sum) / Math.max(1, rowStops.length - 1));
+    const ordered = rtl ? [...rowStops].reverse() : rowStops;
+    const orderedWidths = rtl ? [...widths].reverse() : widths;
+    let cursor = xStart;
+    const pts = ordered.map((stop, idx) => {
+      const x = cursor + orderedWidths[idx] / 2;
+      cursor += orderedWidths[idx] + (idx < ordered.length - 1 ? gap : 0);
+      return { stop, x, y };
+    });
+    return rtl ? pts.reverse() : pts;
+  }
+
+  function buildSnakeLayout(stops, area) {
+    const { xStart, xEnd, yStart, rowHeight } = area;
+    const perRow = Number($("g_stopsPerRow").value) || 0;
+    const rows = chunkStops(stops, perRow, xEnd - xStart);
+    const allPoints = [];
+    const rowPointGroups = [];
+    rows.forEach((rowStops, rowIdx) => {
+      const rtl = rowIdx % 2 === 1;
+      const y = yStart + rowIdx * rowHeight;
+      const pts = rowPositions(rowStops, y, xStart, xEnd, rtl);
+      rowPointGroups.push(pts);
+      allPoints.push(...pts);
+    });
+    return { allPoints, rowPointGroups, rowCount: rows.length };
+  }
+
+  function snakePath(rowPointGroups) {
+    if (!rowPointGroups.length) return "";
+    let d = "";
+    rowPointGroups.forEach((group, rowIdx) => {
+      if (!group.length) return;
+      if (rowIdx === 0) {
+        d += `M ${group[0].x} ${group[0].y}`;
+        for (let i = 1; i < group.length; i++) d += ` L ${group[i].x} ${group[i].y}`;
+        return;
+      }
+      const prev = rowPointGroups[rowIdx - 1];
+      const prevEnd = prev[prev.length - 1];
+      const currStart = group[0];
+      const bendX = prevEnd.x;
+      const midY = (prevEnd.y + currStart.y) / 2;
+      d += ` C ${bendX} ${prevEnd.y + 28}, ${bendX} ${midY}, ${bendX} ${midY}`;
+      d += ` C ${bendX} ${currStart.y - 28}, ${currStart.x} ${currStart.y - 10}, ${currStart.x} ${currStart.y}`;
+      for (let i = 1; i < group.length; i++) d += ` L ${group[i].x} ${group[i].y}`;
+    });
+    return d;
+  }
+
+  function transferBadge(x, y, line, size = 16) {
+    const fill = transferColors[line] || "#666";
+    const label = lineLabels[line] || line;
+    const fs = label.length <= 1 ? size * 0.58 : size * 0.42;
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="${size / 2}" fill="${fill}" stroke="#222" stroke-width="1.2"/>
+      <text x="${x}" y="${y + size * 0.16}" text-anchor="middle" font-size="${fs}" font-weight="900" fill="#fff">${esc(label)}</text>
+    </g>`;
+  }
+
+  function stopLabel(point, rowIdx, routeColor) {
+    const { stop, x, y } = point;
+    const above = rowIdx % 2 === 0;
+    const angle = above ? -42 : 42;
+    const labelY = above ? y - 18 : y + 26;
+    const labelX = x + 6;
+    const nameLen = [...stop.name].length;
+    const fontSize = nameLen > 16 ? 11.5 : nameLen > 11 ? 12.5 : 13.5;
+    const median = stop.isMedian ? `<tspan font-size="${fontSize - 1}" fill="#555">(중)</tspan>` : "";
+    const english = stop.english
+      ? `<tspan x="${labelX}" dy="10" font-size="7.8" font-weight="700" fill="#444">${esc(stop.english)}</tspan>`
+      : "";
+    const transfers = stop.transfers.length
+      ? stop.transfers.map((t, i) => {
+          const ty = above ? y + 22 + i * 18 : y - 22 - i * 18;
+          return transferBadge(x, ty, t, 15);
+        }).join("")
+      : "";
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="4.8" fill="#fff" stroke="#111" stroke-width="2"/>
+      <circle cx="${x}" cy="${y}" r="2.2" fill="${routeColor}"/>
+      <text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="800" fill="#111">
+        <tspan x="${labelX}">${esc(stop.name)}</tspan>${median}${english}
+      </text>
+      ${transfers}
+    </g>`;
+  }
+
+  function gbusLogo(x, y, scale = 1) {
+    return `<g transform="translate(${x} ${y}) scale(${scale})">
+      <defs>
+        <linearGradient id="gbusGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#e85d04"/>
+          <stop offset="100%" stop-color="#f48c06"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="8" width="34" height="34" rx="6" fill="url(#gbusGrad)"/>
+      <text x="17" y="33" text-anchor="middle" font-size="22" font-weight="900" fill="#fff">G</text>
+      <text x="42" y="24" font-size="18" font-weight="900" fill="#e85d04">BUS</text>
+      <text x="42" y="44" font-size="15" font-weight="900" fill="#111">노선안내도</text>
+    </g>`;
+  }
+
+  function sidebarPanel(x, y, w, h, routeNo, from, to, routeColor) {
+    const routeType = routeTypeNames[$("g_routeType").value] || "";
+    return `<g>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="14" fill="${routeColor}"/>
+      <text x="${x + 24}" y="${y + 72}" font-size="72" font-weight="900" fill="#fff">${esc(routeNo)}</text>
+      <text x="${x + 24}" y="${y + 118}" font-size="20" font-weight="900" fill="#fff">${esc(from)} - ${esc(to)}</text>
+      <text x="${x + 24}" y="${y + 152}" font-size="15" font-weight="800" fill="#ecfbf6">${esc(formatFirstLast($("g_firstLast").value.trim()))}</text>
+      <text x="${x + 24}" y="${y + 178}" font-size="15" font-weight="800" fill="#ecfbf6">배차간격 : ${esc($("g_interval").value.trim())}</text>
+      ${routeType ? `<text x="${x + 24}" y="${y + 204}" font-size="13" font-weight="700" fill="#d7f5ec">${esc(routeType)}</text>` : ""}
+      <text x="${x + 24}" y="${h + y - 52}" font-size="12.5" font-weight="700" fill="#ecfbf6">문의처1 ${esc($("g_operator").value.trim())}</text>
+      ${$("g_contact2").value.trim() ? `<text x="${x + 24}" y="${h + y - 28}" font-size="12.5" font-weight="700" fill="#ecfbf6">문의처2 ${esc($("g_contact2").value.trim())}</text>` : ""}
+    </g>`;
+  }
+
+  function standardHeader(width, routeNo, from, to, routeColor) {
+    return `<g>
+      <text x="28" y="34" font-size="16" font-weight="900" fill="#111">${esc(from)} - ${esc(to)}</text>
+      <text x="28" y="54" font-size="11" font-weight="700" fill="#666">경기도 버스정보 시스템(www.gbis.go.kr)</text>
+      ${gbusLogo(width / 2 - 70, 12, 1)}
+      <text x="${width - 28}" y="58" text-anchor="end" font-size="54" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
+      <line x1="20" y1="72" x2="${width - 20}" y2="72" stroke="#d5dbe1" stroke-width="1.5"/>
+    </g>`;
+  }
+
+  function footerInfo(x, y, width) {
+    const contact2 = $("g_contact2").value.trim();
+    return `<g>
+      <text x="${x}" y="${y}" font-size="13" font-weight="800" fill="#333">${esc(formatFirstLast($("g_firstLast").value.trim()))}</text>
+      <text x="${x + width * 0.34}" y="${y}" font-size="13" font-weight="800" fill="#333">배차간격 : ${esc($("g_interval").value.trim())}</text>
+      <text x="${x}" y="${y + 22}" font-size="12.5" font-weight="700" fill="#555">문의처1 ${esc($("g_operator").value.trim())}</text>
+      ${contact2 ? `<text x="${x + width * 0.34}" y="${y + 22}" font-size="12.5" font-weight="700" fill="#555">문의처2 ${esc(contact2)}</text>` : ""}
+    </g>`;
+  }
+
+  function turnaroundBadge(x, y, routeColor) {
+    return `<g>
+      <path d="M ${x - 14} ${y} A 14 14 0 0 1 ${x + 14} ${y}" fill="none" stroke="${routeColor}" stroke-width="4" stroke-linecap="round"/>
+      <polygon points="${x + 16},${y - 2} ${x + 8},${y - 8} ${x + 8},${y + 4}" fill="${routeColor}"/>
+      <text x="${x}" y="${y + 22}" text-anchor="middle" font-size="12" font-weight="900" fill="${routeColor}">회차</text>
+    </g>`;
+  }
+
+  function renderSnakeMap(stops, routeColor, layoutMode, width) {
+    const sidebar = layoutMode === "sidebar";
+    const panelW = sidebar ? 300 : 0;
+    const marginL = sidebar ? panelW + 36 : 36;
+    const xStart = marginL + 20;
+    const xEnd = width - 56;
+    const yStart = sidebar ? 90 : 120;
+    const rowHeight = 118;
+    const layout = buildSnakeLayout(stops, { xStart, xEnd, yStart, rowHeight });
+    const pathD = snakePath(layout.rowPointGroups);
+    const labels = layout.allPoints.map((pt) => {
+      const rowIdx = layout.rowPointGroups.findIndex((g) => g.includes(pt));
+      return stopLabel(pt, rowIdx, routeColor);
+    }).join("");
+
+    let extra = "";
+    if ($("g_showReturn").checked && layout.rowPointGroups.length) {
+      const lastRow = layout.rowPointGroups.at(-1);
+      const lastPt = lastRow.at(-1);
+      extra = turnaroundBadge(lastPt.x + (layout.rowPointGroups.length % 2 ? 28 : -28), lastPt.y, routeColor);
     }
 
-    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator", "adminPassword", "autoReverse", "autoEnglish"]
-      .forEach((id) => $(id).addEventListener("input", render));
-    $("renderBtn").addEventListener("click", render);
-    $("svgBtn").addEventListener("click", saveSvg);
-    $("pngBtn").addEventListener("click", savePng);
-    $("sampleBtn").addEventListener("click", () => {
-      Object.entries(sampleData).forEach(([key, value]) => $(key).value = value);
-      render();
+    const mapHeight = yStart + layout.rowCount * rowHeight + 40;
+    const routeNo = $("g_routeNo").value.trim();
+    const from = $("g_from").value.trim();
+    const to = $("g_to").value.trim();
+
+    return {
+      height: mapHeight,
+      svg: `<g>
+        ${sidebar ? "" : standardHeader(width, routeNo, from, to, routeColor)}
+        ${sidebar ? sidebarPanel(20, 20, panelW, mapHeight + 60, routeNo, from, to, routeColor) : ""}
+        ${pathD ? `<path d="${pathD}" fill="none" stroke="${routeColor}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+        ${pathD ? `<path d="${pathD}" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+        ${labels}
+        ${extra}
+        ${sidebar ? "" : footerInfo(28, mapHeight - 8, width - 56)}
+      </g>`
+    };
+  }
+
+  function render() {
+    const routeColor = getRouteColor();
+    const layoutMode = $("g_layoutMode").value;
+    const opts = { autoEnglish: $("g_autoEnglish").checked, englishStyle: "gg" };
+    const stops = parseStops($("g_stops").value, opts);
+    const baseWidth = layoutMode === "sidebar" ? 1320 : 1280;
+    const map = renderSnakeMap(stops, routeColor, layoutMode, baseWidth);
+    const height = Math.max(420, map.height + (layoutMode === "sidebar" ? 80 : 40));
+
+    document.getElementById("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${baseWidth} ${height}" role="img" aria-label="경기도 버스 노선도">
+      <rect width="${baseWidth}" height="${height}" fill="#fff"/>
+      ${map.svg}
+    </svg>`;
+  }
+
+  const sample169 = {
+    g_routeNo: "169", g_routeType: "13", g_from: "소사공영차고지", g_to: "킨텍스(1전시장)",
+    g_interval: "30분", g_firstLast: "05:00 ~ 22:40",
+    g_operator: "부천교통 032-329-5600", g_contact2: "소사공영차고지 032-326-1690",
+    g_layoutMode: "sidebar",
+    g_stops: `소사공영차고지\n소사역\n소사IC\n부천종합운동장\n부천시청\n부체대학교\n부천터미널\n송내동\n중동\n부평구청\n부평역 (1호선, 7호선)\n부평시장\n갈산역 (7호선)\n구산역 (6호선)\n킨텍스 제1전시장`
+  };
+
+  const sample62 = {
+    g_routeNo: "6-2", g_routeType: "13", g_from: "대장공영차고지", g_to: "전진아파트",
+    g_interval: "15~20분", g_firstLast: "05:30 ~ 22:30",
+    g_operator: "고양교통 031-123-4567", g_contact2: "", g_layoutMode: "standard",
+    g_stops: `대장공영차고지\n대화역 (3호선)\n주엽역 (3호선)\n대화동\n풍동\n마두역 (3호선)\n백석역 (3호선)\n정발산역 (3호선)\n주엽동\n대화IC\n전진아파트`
+  };
+
+  function applySample(data) {
+    Object.entries(data).forEach(([key, value]) => {
+      const el = $(key);
+      if (el) el.value = value;
+    });
+    const type = $("g_routeType").value;
+    if (type !== "manual" && routeTypeColors[type]) $("g_routeColor").value = routeTypeColors[type];
+    render();
+  }
+
+  function bind() {
+    ["g_routeNo", "g_routeType", "g_routeColor", "g_layoutMode", "g_from", "g_to", "g_stops",
+      "g_interval", "g_firstLast", "g_operator", "g_contact2", "g_stopsPerRow", "g_showReturn", "g_autoEnglish"]
+      .forEach((id) => $(id).addEventListener("input", () => App.renderIfActive("gyeonggi")));
+
+    $("g_routeType").addEventListener("change", () => {
+      const type = $("g_routeType").value;
+      if (type !== "manual" && routeTypeColors[type]) $("g_routeColor").value = routeTypeColors[type];
+      App.renderIfActive("gyeonggi");
     });
 
-    ["routeNo", "routeColor", "from", "to", "directionLayout", "outbound", "inbound", "interval", "firstLast", "operator"].forEach((id) => {
-      sampleData[id] = $(id).value;
+    $("g_renderBtn").addEventListener("click", render);
+    $("g_svgBtn").addEventListener("click", () => Shared.saveSvg(`gg-bus-route-${$("g_routeNo").value || "template"}`));
+    $("g_pngBtn").addEventListener("click", () => Shared.savePng(`gg-bus-route-${$("g_routeNo").value || "template"}`));
+    $("g_sample169Btn").addEventListener("click", () => applySample(sample169));
+    $("g_sample62Btn").addEventListener("click", () => applySample(sample62));
+  }
+
+  return { render, bind, applySample };
+})();
+const App = (() => {
+  const GATE_PASSWORD = "5263815731";
+
+  // ↓ 본인 후원 링크로 바꾸세요 (비워두면 해당 버튼 숨김)
+  const DONATION = {
+    message: "버스 노선도 도구가 도움이 되었다면 후원으로 응원해 주세요.",
+    links: [
+      { id: "kakao", label: "카카오페이로 후원하기", url: "https://qr.kakaopay.com/FUq1pE9eI", className: "kakao" }
+    ]
+  };
+
+  let region = "seoul";
+  let unlocked = false;
+
+  const meta = {
+    seoul: {
+      badge: "TOPIS",
+      title: "서울 시내버스 노선도",
+      sub: "topis.seoul.go.kr · 상·하행 2줄 + 노선지도",
+      pageTitle: "서울 버스 노선도"
+    },
+    gyeonggi: {
+      badge: "G BUS",
+      title: "경기도 G BUS 노선안내도",
+      sub: "gbis.go.kr · 뱀形 단일 노선",
+      pageTitle: "경기도 버스 노선도"
+    }
+  };
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function updateChrome() {
+    const m = meta[region];
+    $("brandBadge").textContent = m.badge;
+    $("brandTitle").textContent = m.title;
+    $("brandSub").textContent = m.sub;
+    document.title = m.pageTitle;
+    document.body.className = `region-${region}`;
+
+    document.querySelectorAll(".region-tab").forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.region === region);
     });
 
+    $("panelSeoul").classList.toggle("hidden", region !== "seoul");
+    $("panelGyeonggi").classList.toggle("hidden", region !== "gyeonggi");
+  }
+
+  function renderIfActive(targetRegion) {
+    if (!unlocked || region !== targetRegion) return;
+    render();
+  }
+
+  function render() {
+    if (!unlocked) return;
+    const sheet = $("sheet");
+    sheet.classList.add("switching");
+    requestAnimationFrame(() => {
+      if (region === "seoul") SeoulEngine.render();
+      else GyeonggiEngine.render();
+      requestAnimationFrame(() => sheet.classList.remove("switching"));
+    });
+  }
+
+  function switchRegion(next) {
+    if (next === region) return;
+    region = next;
+    updateChrome();
+    render();
+  }
+
+  function unlock() {
+    unlocked = true;
+    $("gate").classList.add("hidden");
+    if ($("s_adminPassword").value !== GATE_PASSWORD) $("s_adminPassword").value = "";
+    render();
+  }
+
+  function bindGate() {
     $("gateForm").addEventListener("submit", (event) => {
       event.preventDefault();
-      if ($("gatePassword").value === "5263815731") {
-        $("adminPassword").value = "5263815731";
-        $("gate").classList.add("hidden");
-        render();
+      if ($("gatePassword").value === GATE_PASSWORD) {
+        $("s_adminPassword").value = GATE_PASSWORD;
+        $("gateError").textContent = "";
+        unlock();
         return;
       }
       $("gateError").textContent = "비밀번호가 틀렸습니다.";
       $("gatePassword").select();
     });
+  }
 
-    render();
+  function bindRegionNav() {
+    document.querySelectorAll(".region-tab").forEach((tab) => {
+      tab.addEventListener("click", () => switchRegion(tab.dataset.region));
+    });
+  }
+
+  function bindDonate() {
+    const overlay = $("donateOverlay");
+    const linksEl = $("donateLinks");
+    const activeLinks = DONATION.links.filter((item) => item.url && item.url.trim());
+
+    $("donateMessage").textContent = DONATION.message;
+
+    if (!activeLinks.length) {
+      linksEl.innerHTML = `<div class="donate-empty">후원 링크가 아직 설정되지 않았습니다.<br>index.html 안 <strong>DONATION.links</strong>에 토스·Ko-fi URL을 넣으면 실제 결제 페이지로 연결됩니다.</div>`;
+    } else {
+      linksEl.innerHTML = activeLinks.map((item) =>
+        `<a href="${item.url}" class="${item.className || ""}" target="_blank" rel="noopener noreferrer">${item.label}</a>`
+      ).join("");
+    }
+
+    $("donateBtn").addEventListener("click", () => overlay.classList.remove("hidden"));
+    $("donateClose").addEventListener("click", () => overlay.classList.add("hidden"));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) overlay.classList.add("hidden");
+    });
+  }
+
+  function init() {
+    bindGate();
+    bindRegionNav();
+    bindDonate();
+    SeoulEngine.bind();
+    GyeonggiEngine.bind();
+    updateChrome();
+  }
+
+  return { init, render, renderIfActive, switchRegion, get region() { return region; } };
+})();
+
+document.addEventListener("DOMContentLoaded", () => App.init());
   </script>
 </body>
 </html>
-

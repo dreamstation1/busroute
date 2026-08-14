@@ -439,6 +439,24 @@
           <input id="s_routeNo" value="5620" />
         </div>
         <div>
+          <label for="s_from">기점</label>
+          <input id="s_from" value="시흥" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="s_to">종점</label>
+          <input id="s_to" value="선유도역" />
+        </div>
+        <div>
+          <label for="s_departGu">출발구 (비우면 자동)</label>
+          <input id="s_departGu" placeholder="예: 강서구" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
           <label for="s_routeColor">노선색</label>
           <select id="s_routeColor">
             <option value="#13a84b" selected>초록(지선)</option>
@@ -453,17 +471,6 @@
             <option value="#6f8e25">연두</option>
             <option value="#8a8f98">회색</option>
           </select>
-        </div>
-      </div>
-
-      <div class="row">
-        <div>
-          <label for="s_from">기점</label>
-          <input id="s_from" value="시흥" />
-        </div>
-        <div>
-          <label for="s_to">종점</label>
-          <input id="s_to" value="선유도역" />
         </div>
       </div>
 
@@ -870,47 +877,93 @@ const Shared = (() => {
     img.src = url;
   }
 
+  function uturnArrow() {
+    return `<path d="M -3.5 2.5 A 5.5 5.5 0 1 1 3.5 2.5" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/>
+      <polygon points="5.2,2.5 1.8,0 1.8,5" fill="#fff"/>`;
+  }
+
+  function turnaroundIcon(fill, side = "right") {
+    const r = 11;
+    const circle = `<circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2"/>${uturnArrow()}`;
+
+    if (side === "right") {
+      return `<g>
+        <line x1="-32" y1="0" x2="-${r + 3}" y2="0" stroke="#111" stroke-width="2" stroke-dasharray="4 3"/>
+        ${circle}
+        <text x="${r + 12}" y="5" font-size="16" font-weight="900" fill="${fill}">회차</text>
+      </g>`;
+    }
+    return `<g>
+      <text x="-${r + 42}" y="5" text-anchor="end" font-size="16" font-weight="900" fill="${fill}">회차</text>
+      ${circle}
+      <line x1="${r + 3}" y1="0" x2="32" y2="0" stroke="#111" stroke-width="2" stroke-dasharray="4 3"/>
+    </g>`;
+  }
+
+  function routeEndpointIcon(x, y, fill, kind = "uturn") {
+    const r = 11;
+    const inner = kind === "uturn"
+      ? uturnArrow()
+      : `<path d="M -5 0 L 5 0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+         <polygon points="5,0 1,-4 1,4" fill="#fff"/>`;
+    return `<g transform="translate(${x} ${y})">
+      <circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2"/>
+      ${inner}
+    </g>`;
+  }
+
   return {
     transferColors, lineNames, lineLabels, lineOrder, stationEnglish,
     sortLines, esc, normalizeLineToken, extractStationKey, romanizeHangul,
     inferEnglish, parseTransfersFromParentheses, parseStopLine, parseStops,
-    marker, download, saveSvg, savePng
+    marker, download, saveSvg, savePng, turnaroundIcon, routeEndpointIcon
   };
 })();
 const SeoulEngine = (() => {
-  const { esc, parseStops, marker, transferColors, lineNames, lineLabels, sortLines, extractStationKey } = Shared;
+  const {
+    esc, parseStops, marker, transferColors, lineNames, lineLabels, sortLines,
+    extractStationKey, turnaroundIcon, routeEndpointIcon
+  } = Shared;
   const $ = (id) => document.getElementById(id);
 
-  function linePath(points) {
-    return points.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ");
-  }
-
-  function uTurnSvg(x, y, fill, side = "right") {
-    const flip = side === "left" ? -1 : 1;
-    return `<g transform="translate(${x} ${y}) scale(${flip} 1)">
-      <path d="M -12 0 A 12 12 0 0 1 12 0" fill="none" stroke="${fill}" stroke-width="4" stroke-linecap="round"/>
-      <polygon points="14,-2 6,-8 6,4" fill="${fill}"/>
-    </g>`;
-  }
-
   function turnaroundMark(x, y, fill, labelSide = "right") {
-    const textX = labelSide === "right" ? x + 20 : x - 20;
-    const anchor = labelSide === "right" ? "start" : "end";
-    return `<g>
-      ${uTurnSvg(x, y, fill, labelSide)}
-      <text x="${textX}" y="${y + 7}" text-anchor="${anchor}" font-size="16" font-weight="900" fill="${fill}">회차</text>
-    </g>`;
+    return `<g transform="translate(${x} ${y})">${turnaroundIcon(fill, labelSide)}</g>`;
   }
 
-  function angleBetween(a, b) {
-    return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  function guForStop(stop) {
+    return detectGuFromText(stop.name) || null;
   }
 
-  function mapEndpointMarker(x, y, fill, angle = 0) {
-    return `<g transform="rotate(${angle} ${x} ${y})">
-      <path d="M ${x - 10} ${y} A 10 10 0 0 1 ${x + 10} ${y}" fill="none" stroke="${fill}" stroke-width="3.5"/>
-      <polygon points="${x + 12},${y - 2} ${x + 5},${y - 7} ${x + 5},${y + 3}" fill="${fill}"/>
-    </g>`;
+  function guSegmentLabels(stops, points, y, firstGuOverride) {
+    if (!stops.length) return "";
+    const gus = stops.map((stop, i) => {
+      if (i === 0 && firstGuOverride) return firstGuOverride;
+      return guForStop(stop);
+    });
+    const segments = [];
+    let start = 0;
+    for (let i = 1; i <= stops.length; i++) {
+      if (i === stops.length || (gus[i] && gus[i] !== gus[start])) {
+        segments.push({ start, end: i - 1, gu: gus[start] });
+        start = i;
+      }
+    }
+
+    const vline = (x) =>
+      `<line x1="${x}" y1="${y + 12}" x2="${x}" y2="${y + 40}" stroke="#888" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+
+    return segments.map((seg, idx) => {
+      if (!seg.gu) return "";
+      const xLeft = idx === 0
+        ? points[seg.start]
+        : (points[seg.start - 1] + points[seg.start]) / 2;
+      const xRight = idx === segments.length - 1
+        ? points[seg.end]
+        : (points[seg.end] + points[seg.end + 1]) / 2;
+      const mid = (xLeft + xRight) / 2;
+      return `${vline(xLeft)}${vline(xRight)}
+        <text x="${mid}" y="${y + 56}" text-anchor="middle" font-size="11" font-weight="800" fill="#333">서울(${esc(seg.gu)})</text>`;
+    }).join("");
   }
 
   function transferStack(x, y, transfers, side = "below", compact = false) {
@@ -965,7 +1018,7 @@ const SeoulEngine = (() => {
       <text x="${x}" y="${y + 46}" font-size="31" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
   }
 
-  function routeRow(stops, y, x0, titleA, titleB, routeColor, rowSide, layout) {
+  function routeRow(stops, y, x0, titleA, titleB, routeColor, rowSide, layout, firstGuOverride) {
     const points = [];
     let cursor = x0;
     stops.forEach((stop, i) => {
@@ -976,7 +1029,8 @@ const SeoulEngine = (() => {
     const labels = stops.map((stop, i) => stopNode(points[i], y, stop, routeColor, rowSide)).join("");
     const isBottom = rowSide === "bottom";
     const titleY = isBottom ? y - 110 : y - 92;
-    const returnX = isBottom ? x0 - 70 : endX + 48;
+    const returnX = isBottom ? x0 - 58 : endX + 58;
+    const guMarks = guSegmentLabels(stops, points, y, firstGuOverride);
 
     return {
       width: endX + 125,
@@ -984,13 +1038,150 @@ const SeoulEngine = (() => {
         ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
         <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>
         ${labels}
+        ${guMarks}
         ${isBottom
-          ? `${turnaroundMark(returnX, y, routeColor, "left")}<line x1="${returnX + 16}" y1="${y}" x2="${x0 - 8}" y2="${y}" stroke="#111" stroke-width="2" stroke-dasharray="4 4"/>`
-          : `${turnaroundMark(returnX, y, routeColor, "right")}`}
-        <line x1="${x0}" y1="${y + 14}" x2="${x0}" y2="${y + 43}" stroke="#999" stroke-width="1.5" stroke-dasharray="4 4"/>
-        <text x="${x0 - 9}" y="${y + 62}" text-anchor="end" font-size="11" font-weight="800">서울(출발구)</text>
+          ? `<g transform="translate(${returnX} ${y})">${turnaroundIcon(routeColor, "left")}</g><line x1="${returnX + 34}" y1="${y}" x2="${x0 - 8}" y2="${y}" stroke="#111" stroke-width="2" stroke-dasharray="4 4"/>`
+          : `<g transform="translate(${returnX} ${y})">${turnaroundIcon(routeColor, "right")}</g>`}
       </g>`
     };
+  }
+
+  const mapWidth = 455;
+  const mapHeight = 740;
+
+  const STATION_GEO = {
+    "선유도역": { lat: 37.538028, lng: 126.893475 },
+    "당산역": { lat: 37.53438, lng: 126.902295 },
+    "오목교역": { lat: 37.524496, lng: 126.875181 },
+    "양천구청역": { lat: 37.512759, lng: 126.866489 },
+    "신정네거리역": { lat: 37.524997, lng: 126.856191 },
+    "신도림역": { lat: 37.508725, lng: 126.891295 },
+    "구로디지털단지역": { lat: 37.485266, lng: 126.901401 },
+    "영등포구청역": { lat: 37.526065, lng: 126.896057 },
+    "신풍역": { lat: 37.50008, lng: 126.90993 },
+    "보라매역": { lat: 37.499918, lng: 126.920279 },
+    "까치산역": { lat: 37.531768, lng: 126.846683 },
+    "발산역": { lat: 37.558598, lng: 126.837668 },
+    "마곡역": { lat: 37.560183, lng: 126.825448 },
+    "부평역": { lat: 37.489493, lng: 126.724805 },
+    "갈산역": { lat: 37.517178, lng: 126.721561 },
+    "구산역": { lat: 37.611087, lng: 126.917294 }
+  };
+
+  const GU_GEO = {
+    "강서구": { lat: 37.550985, lng: 126.849534, fill: "#d5d8dc" },
+    "양천구": { lat: 37.514792, lng: 126.866028, fill: "#cfd4da" },
+    "영등포구": { lat: 37.526126, lng: 126.896534, fill: "#d8dde2" },
+    "구로구": { lat: 37.495485, lng: 126.887532, fill: "#d0d5db" },
+    "금천구": { lat: 37.456596, lng: 126.895024, fill: "#cdd2d8" },
+    "마포구": { lat: 37.563842, lng: 126.908704, fill: "#d6dbe0" },
+    "은평구": { lat: 37.60278, lng: 126.929164, fill: "#d2d7dc" },
+    "서대문구": { lat: 37.579225, lng: 126.9368, fill: "#d4d9de" },
+    "종로구": { lat: 37.572595, lng: 126.979374, fill: "#d7dce1" },
+    "중구": { lat: 37.563842, lng: 126.9976, fill: "#d5dade" },
+    "용산구": { lat: 37.532096, lng: 126.970078, fill: "#d3d8dd" },
+    "성동구": { lat: 37.563842, lng: 127.036684, fill: "#d6dbe0" },
+    "광진구": { lat: 37.538617, lng: 127.082375, fill: "#d4d9de" },
+    "동대문구": { lat: 37.574787, lng: 127.039765, fill: "#d2d7dc" },
+    "중랑구": { lat: 37.606324, lng: 127.092584, fill: "#d0d5da" },
+    "성북구": { lat: 37.5894, lng: 127.016749, fill: "#d5dade" },
+    "강북구": { lat: 37.639938, lng: 127.025561, fill: "#d3d8dd" },
+    "도봉구": { lat: 37.668768, lng: 127.047163, fill: "#d1d6db" },
+    "노원구": { lat: 37.654286, lng: 127.056411, fill: "#d4d9de" },
+    "강남구": { lat: 37.517305, lng: 127.047502, fill: "#d6dbe0" },
+    "서초구": { lat: 37.483664, lng: 127.032731, fill: "#d2d7dc" },
+    "송파구": { lat: 37.514575, lng: 127.105399, fill: "#d5dade" },
+    "강동구": { lat: 37.530126, lng: 127.123771, fill: "#d3d8dd" }
+  };
+
+  const GU_KEYWORDS = [
+    ["신월", "강서구"], ["화곡", "강서구"], ["등촌", "강서구"], ["가양", "강서구"], ["발산", "강서구"], ["마곡", "강서구"], ["방화", "강서구"],
+    ["목동", "양천구"], ["신정", "양천구"], ["신목", "양천구"], ["오목", "양천구"], ["양천", "양천구"], ["파리", "양천구"],
+    ["영등포", "영등포구"], ["여의도", "영등포구"], ["당산", "영등포구"], ["문래", "영등포구"],
+    ["구로", "구로구"], ["고척", "구로구"], ["개봉", "구로구"], ["오류", "구로구"],
+    ["금천", "금천구"], ["독산", "금천구"], ["시흥", "금천구"],
+    ["마포", "마포구"], ["공덕", "마포구"], ["합정", "마포구"],
+    ["은평", "은평구"], ["불광", "은평구"], ["연신내", "은평구"]
+  ];
+
+  function detectGuFromText(text) {
+    const direct = text.match(/([가-힣]+구)/);
+    if (direct) return direct[1];
+    for (const [kw, gu] of GU_KEYWORDS) {
+      if (text.includes(kw)) return gu;
+    }
+    const station = extractStationKey(text);
+    if (station && STATION_GEO[station]) {
+      let best = null;
+      let bestD = Infinity;
+      const geo = STATION_GEO[station];
+      Object.entries(GU_GEO).forEach(([gu, g]) => {
+        const d = (g.lat - geo.lat) ** 2 + (g.lng - geo.lng) ** 2;
+        if (d < bestD) { bestD = d; best = gu; }
+      });
+      return best;
+    }
+    return null;
+  }
+
+  function resolveDepartGu(stops, from) {
+    const manual = $("s_departGu")?.value.trim();
+    if (manual) return manual.replace(/\(출발구\)$/, "");
+    return detectGuFromText(stops[0]?.name || "") || detectGuFromText(from) || "서울";
+  }
+
+  function resolveStopGeo(stop, index, total, bounds) {
+    const station = extractStationKey(stop.name);
+    if (station && STATION_GEO[station]) return { ...STATION_GEO[station], source: "station" };
+    for (const [kw, gu] of GU_KEYWORDS) {
+      if (stop.name.includes(kw) && GU_GEO[gu]) return { ...GU_GEO[gu], source: "keyword" };
+    }
+    const guMatch = stop.name.match(/([가-힣]+구)/);
+    if (guMatch && GU_GEO[guMatch[1]]) return { ...GU_GEO[guMatch[1]], source: "gu" };
+    const t = total <= 1 ? 0.5 : index / (total - 1);
+    return {
+      lat: bounds.minLat + (bounds.maxLat - bounds.minLat) * (0.25 + t * 0.55),
+      lng: bounds.minLng + (bounds.maxLng - bounds.minLng) * (0.1 + t * 0.85),
+      source: "interp"
+    };
+  }
+
+  function computeBounds(geos) {
+    const lats = geos.map((g) => g.lat);
+    const lngs = geos.map((g) => g.lng);
+    const padLat = 0.012;
+    const padLng = 0.015;
+    return {
+      minLat: Math.min(...lats) - padLat,
+      maxLat: Math.max(...lats) + padLat,
+      minLng: Math.min(...lngs) - padLng,
+      maxLng: Math.max(...lngs) + padLng
+    };
+  }
+
+  function projectGeo(lat, lng, bounds) {
+    const padX = 28;
+    const padY = 42;
+    const w = mapWidth - padX * 2;
+    const h = mapHeight - padY * 2;
+    return {
+      x: padX + ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * w,
+      y: padY + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * h
+    };
+  }
+
+  function drawGuTerrain(bounds) {
+    const landPaths = `
+      <path d="M0 0 H123 L88 36 L164 116 L248 26 L248 0 H455 V210 L430 210 L393 253 H348 L316 281 H265 L226 322 H196 L165 355 H120 L84 394 H0 Z" fill="#b9bbbd"/>
+      <path d="M0 160 H42 V247 H5 V386 H0 Z" fill="#b9bbbd"/>
+      <path d="M0 514 L86 424 L86 360 L127 320 L127 567 L210 650 L210 740 H0 Z" fill="#b9bbbd"/>
+      <path d="M160 740 V666 L242 591 H305 L305 557 H455 V740 Z" fill="#b9bbbd"/>
+      <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
+      <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>`;
+    return `<g>
+      <rect x="0" y="0" width="${mapWidth}" height="${mapHeight}" fill="#fff"/>
+      ${landPaths}
+    </g>`;
   }
 
   function mapLabelForStop(stop, fallback) {
@@ -1015,56 +1206,50 @@ const SeoulEngine = (() => {
     return deduped.slice(0, 8);
   }
 
-  const mapWidth = 455;
-
   function miniMap(stops, routeColor, from, to) {
     const mapStops = chooseMapStops(stops, from, to);
-    const guide = [
-      { x: 206, y: 132 }, { x: 207, y: 166 }, { x: 192, y: 198 }, { x: 228, y: 226 },
-      { x: 169, y: 242 }, { x: 174, y: 274 }, { x: 144, y: 268 }, { x: 151, y: 293 },
-      { x: 136, y: 362 }, { x: 150, y: 413 }, { x: 158, y: 475 }, { x: 146, y: 525 },
-      { x: 162, y: 612 }, { x: 185, y: 650 }
-    ];
-    const coords = mapStops.map((_, i) => {
-      const t = mapStops.length <= 1 ? 0 : i / (mapStops.length - 1);
-      const pos = t * (guide.length - 1);
-      const lo = Math.floor(pos);
-      const hi = Math.min(guide.length - 1, lo + 1);
-      const mix = pos - lo;
-      return {
-        x: guide[lo].x + (guide[hi].x - guide[lo].x) * mix,
-        y: guide[lo].y + (guide[hi].y - guide[lo].y) * mix
-      };
+    const allGeos = stops.map((s, i) => resolveStopGeo(s, i, stops.length, {
+      minLat: 37.45, maxLat: 37.60, minLng: 126.78, maxLng: 127.02
+    }));
+    const bounds = computeBounds(allGeos);
+    const routePts = allGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
+    const routePath = routePts.length
+      ? `M ${routePts[0].x} ${routePts[0].y}` + routePts.slice(1).map((p) => ` L ${p.x} ${p.y}`).join("")
+      : "";
+
+    const labelCoords = mapStops.map((s) => {
+      const idx = stops.findIndex((st) => st.name === s.name);
+      const i = idx >= 0 ? idx : 0;
+      return projectGeo(allGeos[i].lat, allGeos[i].lng, bounds);
     });
+
     const labels = mapStops.map((s, i) => {
-      const p = coords[i];
+      const p = labelCoords[i];
       const label = s.mapLabel || mapLabelForStop(s);
-      const toLeft = p.x > 180;
-      const tx = toLeft ? p.x - 20 : p.x + 20;
+      const toLeft = p.x > mapWidth * 0.55;
+      const tx = toLeft ? p.x - 14 : p.x + 14;
       const anchor = toLeft ? "end" : "start";
       return `<g>
-        ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, i < 2 ? "below" : "above") : ""}
-        <text x="${tx}" y="${p.y + 6}" text-anchor="${anchor}" font-size="17" font-weight="900">${esc(label)}</text>
+        <circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="${routeColor}" stroke-width="2"/>
+        ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, p.y < mapHeight / 2 ? "below" : "above") : ""}
+        <text x="${tx}" y="${p.y + 5}" text-anchor="${anchor}" font-size="14" font-weight="900">${esc(label)}</text>
       </g>`;
     }).join("");
 
+    const insetGu = detectGuFromText(stops[0]?.name || from) || "서울";
+
     return `<g>
-      <rect x="0" y="0" width="${mapWidth}" height="740" fill="#fff"/>
-      <path d="M0 0 H123 L88 36 L164 116 L248 26 L248 0 H455 V210 L430 210 L393 253 H348 L316 281 H265 L226 322 H196 L165 355 H120 L84 394 H0 Z" fill="#b9bbbd"/>
-      <path d="M0 160 H42 V247 H5 V386 H0 Z" fill="#b9bbbd"/>
-      <path d="M0 514 L86 424 L86 360 L127 320 L127 567 L210 650 L210 740 H0 Z" fill="#b9bbbd"/>
-      <path d="M160 740 V666 L242 591 H305 L305 557 H455 V740 Z" fill="#b9bbbd"/>
-      <path d="M251 0 V170 L319 170 L356 206 L455 206 V0 Z" fill="#b9bbbd"/>
-      <path d="M34 0 L207 190 L306 190 L343 155 L455 155 M0 336 L102 235 M210 650 L303 559 L455 559" fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round"/>
-      <path d="${linePath(guide)}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-      ${coords[0] ? mapEndpointMarker(coords[0].x, coords[0].y, routeColor, angleBetween(coords[0], coords[1] || coords[0])) : ""}
-      ${coords.at(-1) ? mapEndpointMarker(coords.at(-1).x, coords.at(-1).y, routeColor, angleBetween(coords.at(-1), coords.at(-2) || coords.at(-1))) : ""}
+      ${drawGuTerrain(bounds)}
+      ${routePath ? `<path d="${routePath}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+      ${routePts[0] ? routeEndpointIcon(routePts[0].x, routePts[0].y, routeColor, "arrow") : ""}
+      ${routePts.at(-1) ? routeEndpointIcon(routePts.at(-1).x, routePts.at(-1).y, routeColor, "uturn") : ""}
       ${labels}
-      <rect x="32" y="32" width="120" height="120" fill="#fff" stroke="#666" stroke-width="2"/>
-      <path d="M46 104 L82 64 L122 78 L150 50 V152 H32 V128 Z" fill="#9a9d9f"/>
-      <path d="M48 126 C66 82, 92 142, 136 82" fill="none" stroke="#fff" stroke-width="9"/>
-      <path d="M51 126 C68 84, 93 140, 134 82" fill="none" stroke="#111" stroke-width="3"/>
-      <rect x="67" y="83" width="49" height="43" fill="none" stroke="#13a84b" stroke-width="4"/>
+      <rect x="18" y="18" width="118" height="118" fill="#fff" stroke="#888" stroke-width="1.8" rx="4"/>
+      <text x="24" y="38" font-size="10" font-weight="800" fill="#555">서울특별시</text>
+      <text x="24" y="56" font-size="13" font-weight="900" fill="#111">${esc(insetGu)}</text>
+      <path d="M28 98 L52 72 L78 82 L98 58 V112 H24 V102 Z" fill="#b5b9bd"/>
+      <path d="M30 102 C42 78, 58 118, 88 82" fill="none" stroke="#fff" stroke-width="5"/>
+      <rect x="48" y="78" width="36" height="28" fill="none" stroke="${routeColor}" stroke-width="3"/>
     </g>`;
   }
 
@@ -1099,9 +1284,10 @@ const SeoulEngine = (() => {
       ? parseStops(inboundText, opts)
       : ($("s_autoReverse").checked ? [...outbound].reverse() : []);
 
+    const departGu = resolveDepartGu(outbound, from);
     const x0 = 980;
-    const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout);
-    const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout);
+    const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout, departGu);
+    const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout, departGu);
     const width = Math.max(1500, top.width, bottom.width);
     const height = 740;
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
@@ -1139,7 +1325,7 @@ const SeoulEngine = (() => {
   }
 
   function bind() {
-    ["s_routeNo", "s_routeColor", "s_from", "s_to", "s_directionLayout", "s_outbound", "s_inbound",
+    ["s_routeNo", "s_routeColor", "s_from", "s_to", "s_departGu", "s_directionLayout", "s_outbound", "s_inbound",
       "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish"]
       .forEach((id) => $(id).addEventListener("input", () => App.renderIfActive("seoul")));
     $("s_renderBtn").addEventListener("click", render);
@@ -1151,7 +1337,7 @@ const SeoulEngine = (() => {
   return { render, bind, applySample };
 })();
 const GyeonggiEngine = (() => {
-  const { esc, parseStops, transferColors, lineLabels } = Shared;
+  const { esc, parseStops, transferColors, lineLabels, turnaroundIcon } = Shared;
   const $ = (id) => document.getElementById(id);
 
   // G BUS 신도색 가이드라인 (나무위키·경기도 공공관리제 도색 기준)
@@ -1186,7 +1372,7 @@ const GyeonggiEngine = (() => {
 
   function labelWidthEstimate(stop) {
     const longest = [...stop.name].length + (stop.isMedian ? 3 : 0);
-    return Math.max(58, Math.min(110, longest * 5.2 + (stop.transfers.length ? 14 : 0)));
+    return Math.max(72, Math.min(120, longest * 5.8 + (stop.transfers.length ? 16 : 0)));
   }
 
   function chunkStops(stops, perRow, usableWidth) {
@@ -1200,10 +1386,10 @@ const GyeonggiEngine = (() => {
         count = 0;
         while (i + count < stops.length) {
           const w = labelWidthEstimate(stops[i + count]);
-          if (count > 0 && width + w > usableWidth) break;
+          if (count > 0 && width + w > usableWidth * 0.92) break;
           width += w;
           count++;
-          if (count >= 18) break;
+          if (count >= 10) break;
         }
         count = Math.max(1, count);
       }
@@ -1217,7 +1403,7 @@ const GyeonggiEngine = (() => {
     const totalWidth = xEnd - xStart;
     const widths = rowStops.map(labelWidthEstimate);
     const sum = widths.reduce((a, b) => a + b, 0);
-    const gap = Math.max(0, (totalWidth - sum) / Math.max(1, rowStops.length - 1));
+    const gap = Math.max(14, (totalWidth - sum) / Math.max(1, rowStops.length - 1));
     const ordered = rtl ? [...rowStops].reverse() : rowStops;
     const orderedWidths = rtl ? [...widths].reverse() : widths;
     let cursor = xStart;
@@ -1238,7 +1424,7 @@ const GyeonggiEngine = (() => {
     rows.forEach((rowStops, rowIdx) => {
       const rtl = rowIdx % 2 === 1;
       const y = yStart + rowIdx * rowHeight;
-      const pts = rowPositions(rowStops, y, xStart, xEnd, rtl);
+      const pts = rowPositions(rowStops, y, xStart, xEnd, rtl).map((pt, colIdx) => ({ ...pt, colIdx, rowLen: rowStops.length }));
       rowPointGroups.push(pts);
       allPoints.push(...pts);
     });
@@ -1260,8 +1446,8 @@ const GyeonggiEngine = (() => {
       const currStart = group[0];
       const bendX = prevEnd.x;
       const midY = (prevEnd.y + currStart.y) / 2;
-      d += ` C ${bendX} ${prevEnd.y + 28}, ${bendX} ${midY}, ${bendX} ${midY}`;
-      d += ` C ${bendX} ${currStart.y - 28}, ${currStart.x} ${currStart.y - 10}, ${currStart.x} ${currStart.y}`;
+      d += ` C ${bendX} ${prevEnd.y + 36}, ${bendX} ${midY}, ${bendX} ${midY}`;
+      d += ` C ${bendX} ${currStart.y - 36}, ${currStart.x} ${currStart.y - 14}, ${currStart.x} ${currStart.y}`;
       for (let i = 1; i < group.length; i++) d += ` L ${group[i].x} ${group[i].y}`;
     });
     return d;
@@ -1278,28 +1464,34 @@ const GyeonggiEngine = (() => {
   }
 
   function stopLabel(point, rowIdx, routeColor) {
-    const { stop, x, y } = point;
-    const above = rowIdx % 2 === 0;
-    const angle = above ? -42 : 42;
-    const labelY = above ? y - 18 : y + 26;
-    const labelX = x + 6;
+    const { stop, x, y, colIdx = 0, rowLen = 1 } = point;
+    const dense = rowLen > 7;
+    const rowAbove = rowIdx % 2 === 0;
+    const flip = dense ? (colIdx % 2 === 0) : rowAbove;
+    const above = rowAbove ? flip : !flip;
+    const angle = above ? -38 : 38;
+    const labelY = above ? y - (dense ? 26 : 20) : y + (dense ? 30 : 24);
+    const labelX = x + (above ? 5 : 5);
     const nameLen = [...stop.name].length;
-    const fontSize = nameLen > 16 ? 11.5 : nameLen > 11 ? 12.5 : 13.5;
+    const fontSize = dense
+      ? (nameLen > 14 ? 10 : 10.8)
+      : (nameLen > 16 ? 11.5 : nameLen > 11 ? 12.5 : 13.5);
+    const displayName = dense && nameLen > 14 ? `${[...stop.name].slice(0, 13).join("")}…` : stop.name;
     const median = stop.isMedian ? `<tspan font-size="${fontSize - 1}" fill="#555">(중)</tspan>` : "";
-    const english = stop.english
+    const english = !dense && stop.english
       ? `<tspan x="${labelX}" dy="10" font-size="7.8" font-weight="700" fill="#444">${esc(stop.english)}</tspan>`
       : "";
     const transfers = stop.transfers.length
       ? stop.transfers.map((t, i) => {
-          const ty = above ? y + 22 + i * 18 : y - 22 - i * 18;
-          return transferBadge(x, ty, t, 15);
+          const ty = above ? y + 24 + i * 18 : y - 24 - i * 18;
+          return transferBadge(x, ty, t, 14);
         }).join("")
       : "";
     return `<g>
       <circle cx="${x}" cy="${y}" r="4.8" fill="#fff" stroke="#111" stroke-width="2"/>
       <circle cx="${x}" cy="${y}" r="2.2" fill="${routeColor}"/>
       <text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize}" font-weight="800" fill="#111">
-        <tspan x="${labelX}">${esc(stop.name)}</tspan>${median}${english}
+        <tspan x="${labelX}">${esc(displayName)}</tspan>${median}${english}
       </text>
       ${transfers}
     </g>`;
@@ -1354,12 +1546,8 @@ const GyeonggiEngine = (() => {
     </g>`;
   }
 
-  function turnaroundBadge(x, y, routeColor) {
-    return `<g>
-      <path d="M ${x - 14} ${y} A 14 14 0 0 1 ${x + 14} ${y}" fill="none" stroke="${routeColor}" stroke-width="4" stroke-linecap="round"/>
-      <polygon points="${x + 16},${y - 2} ${x + 8},${y - 8} ${x + 8},${y + 4}" fill="${routeColor}"/>
-      <text x="${x}" y="${y + 22}" text-anchor="middle" font-size="12" font-weight="900" fill="${routeColor}">회차</text>
-    </g>`;
+  function turnaroundBadge(x, y, routeColor, side = "right") {
+    return `<g transform="translate(${x} ${y})">${turnaroundIcon(routeColor, side)}</g>`;
   }
 
   function renderSnakeMap(stops, routeColor, layoutMode, width) {
@@ -1369,22 +1557,23 @@ const GyeonggiEngine = (() => {
     const xStart = marginL + 20;
     const xEnd = width - 56;
     const yStart = sidebar ? 90 : 120;
-    const rowHeight = 118;
+    const rowHeight = 156;
     const layout = buildSnakeLayout(stops, { xStart, xEnd, yStart, rowHeight });
     const pathD = snakePath(layout.rowPointGroups);
     const labels = layout.allPoints.map((pt) => {
-      const rowIdx = layout.rowPointGroups.findIndex((g) => g.includes(pt));
-      return stopLabel(pt, rowIdx, routeColor);
+      const rowIdx = layout.rowPointGroups.findIndex((g) => g.some((p) => p.x === pt.x && p.y === pt.y));
+      return stopLabel({ ...pt, colIdx: pt.colIdx, rowLen: pt.rowLen }, rowIdx, routeColor);
     }).join("");
 
     let extra = "";
     if ($("g_showReturn").checked && layout.rowPointGroups.length) {
       const lastRow = layout.rowPointGroups.at(-1);
       const lastPt = lastRow.at(-1);
-      extra = turnaroundBadge(lastPt.x + (layout.rowPointGroups.length % 2 ? 28 : -28), lastPt.y, routeColor);
+      const rtl = (layout.rowPointGroups.length - 1) % 2 === 1;
+      extra = turnaroundBadge(lastPt.x + (rtl ? -40 : 40), lastPt.y + 28, routeColor, rtl ? "left" : "right");
     }
 
-    const mapHeight = yStart + layout.rowCount * rowHeight + 40;
+    const mapHeight = yStart + layout.rowCount * rowHeight + 56;
     const routeNo = $("g_routeNo").value.trim();
     const from = $("g_from").value.trim();
     const to = $("g_to").value.trim();

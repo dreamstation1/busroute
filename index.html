@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>서울 버스 노선도</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #111;
@@ -12,7 +15,13 @@
       --accent: #005bac;
       --accent-soft: #e8f0fa;
       --btn: #273746;
-      font-family: "Malgun Gothic", "Apple SD Gothic Neo", Arial, sans-serif;
+      --font-ui: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      font-family: var(--font-ui);
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
     }
 
     * { box-sizing: border-box; }
@@ -355,6 +364,11 @@
 
     svg { display: block; width: 100%; height: auto; }
 
+    svg text,
+    svg tspan {
+      font-family: var(--font-ui);
+    }
+
     .gate {
       position: fixed;
       inset: 0;
@@ -694,6 +708,11 @@
   <script>
 /* eslint-disable no-unused-vars */
 const Shared = (() => {
+  const fontFamily = '"Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+  const svgFontStyle = `<style><![CDATA[
+    text, tspan { font-family: ${fontFamily}; }
+  ]]></style>`;
+
   const transferColors = {
     "1": "#0d77bd", "2": "#18a64f", "3": "#f28c28", "4": "#1596d2",
     "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
@@ -878,8 +897,9 @@ const Shared = (() => {
   }
 
   function uturnArrow() {
-    return `<path d="M -3.5 2.5 A 5.5 5.5 0 1 1 3.5 2.5" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/>
-      <polygon points="5.2,2.5 1.8,0 1.8,5" fill="#fff"/>`;
+    return `<path d="M 4.5 -1.5 A 5 5 0 1 1 -4.5 -1.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+      <path d="M 4.5 -1.5 L 7.5 -1.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+      <polygon points="7.5,-1.5 4.5,-4.5 4.5,1.5" fill="#fff"/>`;
   }
 
   function turnaroundIcon(fill, side = "right") {
@@ -916,7 +936,7 @@ const Shared = (() => {
     transferColors, lineNames, lineLabels, lineOrder, stationEnglish,
     sortLines, esc, normalizeLineToken, extractStationKey, romanizeHangul,
     inferEnglish, parseTransfersFromParentheses, parseStopLine, parseStops,
-    marker, download, saveSvg, savePng, turnaroundIcon, routeEndpointIcon
+    marker, download, saveSvg, savePng, turnaroundIcon, routeEndpointIcon, svgFontStyle
   };
 })();
 const SeoulEngine = (() => {
@@ -931,15 +951,30 @@ const SeoulEngine = (() => {
   }
 
   function guForStop(stop) {
-    return detectGuFromText(stop.name) || null;
+    const gu = detectGuFromText(stop.name);
+    return gu && GU_GEO[gu] ? gu : null;
+  }
+
+  function guSequenceForStops(stops, firstGuOverride) {
+    const raw = stops.map((stop) => guForStop(stop));
+    if (firstGuOverride && GU_GEO[firstGuOverride]) raw[0] = firstGuOverride;
+
+    let last = raw.find(Boolean) || null;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i]) last = raw[i];
+      else if (last) raw[i] = last;
+    }
+    last = null;
+    for (let i = raw.length - 1; i >= 0; i--) {
+      if (raw[i]) last = raw[i];
+      else if (last) raw[i] = last;
+    }
+    return raw;
   }
 
   function guSegmentLabels(stops, points, y, firstGuOverride) {
     if (!stops.length) return "";
-    const gus = stops.map((stop, i) => {
-      if (i === 0 && firstGuOverride) return firstGuOverride;
-      return guForStop(stop);
-    });
+    const gus = guSequenceForStops(stops, firstGuOverride);
     const segments = [];
     let start = 0;
     for (let i = 1; i <= stops.length; i++) {
@@ -1094,6 +1129,23 @@ const SeoulEngine = (() => {
     "강동구": { lat: 37.530126, lng: 127.123771, fill: "#d3d8dd" }
   };
 
+  const STOP_KEYWORDS = [
+    ["서울과학수사연구소", { lat: 37.5412, lng: 126.8368 }],
+    ["고강동", { lat: 37.5438, lng: 126.8325 }],
+    ["신안파크", { lat: 37.5395, lng: 126.8410 }],
+    ["신월", { lat: 37.5310, lng: 126.8495 }],
+    ["강서초", { lat: 37.5288, lng: 126.8538 }],
+    ["신정", { lat: 37.5250, lng: 126.8595 }],
+    ["양천구청", { lat: 37.5170, lng: 126.8664 }],
+    ["목동", { lat: 37.5240, lng: 126.8720 }],
+    ["파리공원", { lat: 37.5285, lng: 126.8775 }],
+    ["오목교", { lat: 37.5245, lng: 126.8752 }],
+    ["선유도", { lat: 37.5380, lng: 126.8935 }],
+    ["시흥", { lat: 37.4566, lng: 126.8950 }],
+    ["당산", { lat: 37.5344, lng: 126.9023 }],
+    ["영등포", { lat: 37.5261, lng: 126.8961 }]
+  ];
+
   const GU_KEYWORDS = [
     ["신월", "강서구"], ["화곡", "강서구"], ["등촌", "강서구"], ["가양", "강서구"], ["발산", "강서구"], ["마곡", "강서구"], ["방화", "강서구"],
     ["목동", "양천구"], ["신정", "양천구"], ["신목", "양천구"], ["오목", "양천구"], ["양천", "양천구"], ["파리", "양천구"],
@@ -1105,12 +1157,19 @@ const SeoulEngine = (() => {
   ];
 
   function detectGuFromText(text) {
-    const direct = text.match(/([가-힣]+구)/);
-    if (direct) return direct[1];
-    for (const [kw, gu] of GU_KEYWORDS) {
-      if (text.includes(kw)) return gu;
+    const clean = String(text).replace(/\([^)]*\)/g, " ").replace(/·/g, " ");
+    for (const gu of Object.keys(GU_GEO)) {
+      if (clean.includes(gu)) return gu;
     }
-    const station = extractStationKey(text);
+    const office = clean.match(/([가-힣]{1,4})구청/);
+    if (office) {
+      const gu = `${office[1]}구`;
+      if (GU_GEO[gu]) return gu;
+    }
+    for (const [kw, gu] of GU_KEYWORDS) {
+      if (clean.includes(kw)) return gu;
+    }
+    const station = extractStationKey(clean);
     if (station && STATION_GEO[station]) {
       let best = null;
       let bestD = Infinity;
@@ -1124,25 +1183,124 @@ const SeoulEngine = (() => {
     return null;
   }
 
-  function resolveDepartGu(stops, from) {
-    const manual = $("s_departGu")?.value.trim();
-    if (manual) return manual.replace(/\(출발구\)$/, "");
-    return detectGuFromText(stops[0]?.name || "") || detectGuFromText(from) || "서울";
+  function matchStopGeo(name) {
+    const station = extractStationKey(name);
+    if (station && STATION_GEO[station]) return { ...STATION_GEO[station] };
+    const clean = name.replace(/·.*$/, "").replace(/\([^)]*\)/g, "").trim();
+    for (const [kw, geo] of STOP_KEYWORDS.sort((a, b) => b[0].length - a[0].length)) {
+      if (clean.includes(kw) || name.includes(kw)) return { ...geo };
+    }
+    return null;
   }
 
-  function resolveStopGeo(stop, index, total, bounds) {
-    const station = extractStationKey(stop.name);
-    if (station && STATION_GEO[station]) return { ...STATION_GEO[station], source: "station" };
-    for (const [kw, gu] of GU_KEYWORDS) {
-      if (stop.name.includes(kw) && GU_GEO[gu]) return { ...GU_GEO[gu], source: "keyword" };
+  function resolveRouteGeos(stops) {
+    const geos = stops.map((s) => matchStopGeo(s.name));
+    const n = geos.length;
+
+    for (let i = 0; i < n; i++) {
+      if (geos[i]) continue;
+      let prev = -1;
+      let next = -1;
+      for (let j = i - 1; j >= 0; j--) if (geos[j]) { prev = j; break; }
+      for (let j = i + 1; j < n; j++) if (geos[j]) { next = j; break; }
+      if (prev >= 0 && next >= 0) {
+        const t = (i - prev) / (next - prev);
+        geos[i] = {
+          lat: geos[prev].lat + (geos[next].lat - geos[prev].lat) * t,
+          lng: geos[prev].lng + (geos[next].lng - geos[prev].lng) * t
+        };
+      }
     }
-    const guMatch = stop.name.match(/([가-힣]+구)/);
-    if (guMatch && GU_GEO[guMatch[1]]) return { ...GU_GEO[guMatch[1]], source: "gu" };
-    const t = total <= 1 ? 0.5 : index / (total - 1);
-    return {
-      lat: bounds.minLat + (bounds.maxLat - bounds.minLat) * (0.25 + t * 0.55),
-      lng: bounds.minLng + (bounds.maxLng - bounds.minLng) * (0.1 + t * 0.85),
-      source: "interp"
+
+    for (let i = 0; i < n; i++) {
+      if (geos[i]) continue;
+      for (let j = i - 1; j >= 0; j--) if (geos[j]) { geos[i] = { ...geos[j] }; break; }
+    }
+    for (let i = n - 1; i >= 0; i--) {
+      if (geos[i]) continue;
+      for (let j = i + 1; j < n; j++) if (geos[j]) { geos[i] = { ...geos[j] }; break; }
+    }
+
+    const fallback = { minLat: 37.45, maxLat: 37.60, minLng: 126.78, maxLng: 127.02 };
+    return geos.map((g, i) => {
+      if (g) return g;
+      const t = n <= 1 ? 0.5 : i / (n - 1);
+      return {
+        lat: fallback.minLat + (fallback.maxLat - fallback.minLat) * (0.2 + t * 0.6),
+        lng: fallback.minLng + (fallback.maxLng - fallback.minLng) * (0.15 + t * 0.7)
+      };
+    });
+  }
+
+  function smoothRoutePath(points) {
+    if (points.length < 2) return "";
+    if (points.length === 2) {
+      return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+    }
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+    return d;
+  }
+
+  function routeEndpointAlong(points, fill, kind) {
+    if (!points.length) return "";
+    const last = points.at(-1);
+    const prev = points.at(-2) || last;
+    const dx = last.x - prev.x;
+    const dy = last.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const offset = 14;
+    return routeEndpointIcon(
+      last.x + (dx / len) * offset,
+      last.y + (dy / len) * offset,
+      fill,
+      kind
+    );
+  }
+
+  function routeStartAlong(points, fill, kind = "arrow") {
+    if (!points.length) return "";
+    const first = points[0];
+    const next = points[1] || { x: first.x + 1, y: first.y };
+    const dx = next.x - first.x;
+    const dy = next.y - first.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const offset = 14;
+    return routeEndpointIcon(
+      first.x - (dx / len) * offset,
+      first.y - (dy / len) * offset,
+      fill,
+      kind
+    );
+  }
+
+  function resolveDepartGu(stops, from) {
+    const manual = $("s_departGu")?.value.trim();
+    if (manual) {
+      const g = manual.replace(/\(출발구\)$/, "").trim();
+      return g.endsWith("구") ? g : `${g}구`;
+    }
+    const fromGu = detectGuFromText(from);
+    if (fromGu) return fromGu;
+    const seq = guSequenceForStops(stops, null);
+    return seq.find(Boolean) || "강서구";
+  }
+
+  function resolveStopGeo(stop, index, total, bounds, routeGeos) {
+    if (routeGeos && routeGeos[index]) return routeGeos[index];
+    return matchStopGeo(stop.name) || {
+      lat: bounds.minLat + (bounds.maxLat - bounds.minLat) * 0.5,
+      lng: bounds.minLng + (bounds.maxLng - bounds.minLng) * 0.5
     };
   }
 
@@ -1206,43 +1364,46 @@ const SeoulEngine = (() => {
     return deduped.slice(0, 8);
   }
 
-  function miniMap(stops, routeColor, from, to) {
+  function miniMap(stops, routeColor, from, to, departGu) {
     const mapStops = chooseMapStops(stops, from, to);
-    const allGeos = stops.map((s, i) => resolveStopGeo(s, i, stops.length, {
-      minLat: 37.45, maxLat: 37.60, minLng: 126.78, maxLng: 127.02
-    }));
-    const bounds = computeBounds(allGeos);
-    const routePts = allGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
-    const routePath = routePts.length
-      ? `M ${routePts[0].x} ${routePts[0].y}` + routePts.slice(1).map((p) => ` L ${p.x} ${p.y}`).join("")
-      : "";
+    const routeGeos = resolveRouteGeos(stops);
+    const bounds = computeBounds(routeGeos);
+    const routePts = routeGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
+    const routePath = smoothRoutePath(routePts);
 
     const labelCoords = mapStops.map((s) => {
       const idx = stops.findIndex((st) => st.name === s.name);
       const i = idx >= 0 ? idx : 0;
-      return projectGeo(allGeos[i].lat, allGeos[i].lng, bounds);
+      return projectGeo(routeGeos[i].lat, routeGeos[i].lng, bounds);
     });
 
     const labels = mapStops.map((s, i) => {
       const p = labelCoords[i];
       const label = s.mapLabel || mapLabelForStop(s);
+      const isStart = i === 0;
+      const isEnd = i === mapStops.length - 1;
       const toLeft = p.x > mapWidth * 0.55;
       const tx = toLeft ? p.x - 14 : p.x + 14;
       const anchor = toLeft ? "end" : "start";
+      const dot = (isStart || isEnd)
+        ? ""
+        : `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="#111" stroke-width="1.8"/>`;
+      const xfer = (!isStart && !isEnd && s.transfers.length === 1)
+        ? marker(p.x, p.y, transferColors[s.transfers[0]] || "#777", lineLabels[s.transfers[0]] || s.transfers[0], 14)
+        : "";
       return `<g>
-        <circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="${routeColor}" stroke-width="2"/>
-        ${s.transfers.length ? transferStack(p.x, p.y, s.transfers, p.y < mapHeight / 2 ? "below" : "above") : ""}
-        <text x="${tx}" y="${p.y + 5}" text-anchor="${anchor}" font-size="14" font-weight="900">${esc(label)}</text>
+        ${dot}${xfer}
+        <text x="${tx}" y="${p.y + 5}" text-anchor="${anchor}" font-size="13" font-weight="900">${esc(label)}</text>
       </g>`;
     }).join("");
 
-    const insetGu = detectGuFromText(stops[0]?.name || from) || "서울";
+    const insetGu = departGu || guSequenceForStops(stops, null).find(Boolean) || "강서구";
 
     return `<g>
       ${drawGuTerrain(bounds)}
-      ${routePath ? `<path d="${routePath}" fill="none" stroke="#111" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
-      ${routePts[0] ? routeEndpointIcon(routePts[0].x, routePts[0].y, routeColor, "arrow") : ""}
-      ${routePts.at(-1) ? routeEndpointIcon(routePts.at(-1).x, routePts.at(-1).y, routeColor, "uturn") : ""}
+      ${routePath ? `<path d="${routePath}" fill="none" stroke="#111" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+      ${routePts.length > 1 ? routeStartAlong(routePts, routeColor, "arrow") : ""}
+      ${routePts.length > 1 ? routeEndpointAlong(routePts, routeColor, "uturn") : ""}
       ${labels}
       <rect x="18" y="18" width="118" height="118" fill="#fff" stroke="#888" stroke-width="1.8" rx="4"/>
       <text x="24" y="38" font-size="10" font-weight="800" fill="#555">서울특별시</text>
@@ -1293,8 +1454,9 @@ const SeoulEngine = (() => {
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
 
     document.getElementById("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="서울 버스 노선도">
+      ${Shared.svgFontStyle}
       <rect width="${width}" height="${height}" fill="#fff"/>
-      ${miniMap(outbound, routeColor, from, to)}
+      ${miniMap(outbound, routeColor, from, to, departGu)}
       <line x1="${mapWidth}" y1="0" x2="${mapWidth}" y2="${height}" stroke="#adb3ba" stroke-width="2"/>
       <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
       <g transform="translate(98 0)">${legend(allTransfers)}</g>
@@ -1602,6 +1764,7 @@ const GyeonggiEngine = (() => {
     const height = Math.max(420, map.height + (layoutMode === "sidebar" ? 80 : 40));
 
     document.getElementById("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${baseWidth} ${height}" role="img" aria-label="경기도 버스 노선도">
+      ${Shared.svgFontStyle}
       <rect width="${baseWidth}" height="${height}" fill="#fff"/>
       ${map.svg}
     </svg>`;

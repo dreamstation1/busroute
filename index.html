@@ -763,7 +763,8 @@ const Shared = (() => {
   function normalizeLineToken(token) {
     const cleaned = token.replace(/지하철/g, "").replace(/호선/g, "").replace(/신정지선/g, "").replace(/선/g, "").replace(/[()]/g, "").trim();
     const match = cleaned.match(/GTX-[AB]|용인에버라인|경의중앙|신분당|수인분당|신림|경춘|서해|경강|[1-9]|경의|공항/);
-    return match ? match[0] : "";
+    if (!match) return "";
+    return match[0] === "경의" ? "경의중앙" : match[0];
   }
 
   function extractStationKey(name) {
@@ -798,7 +799,8 @@ const Shared = (() => {
   function parseTransfersFromParentheses(text) {
     const transfers = [];
     const without = text.replace(/\(([^)]*)\)/g, (_, inner) => {
-      if (inner.includes("중")) return `(${inner})`;
+      // (중) = 중앙차로 표시만 건너뜀. "경의중앙선"처럼 '중'이 들어간 노선명은 그대로 처리
+      if (/^\s*중(앙차로)?\s*$/.test(inner)) return `(${inner})`;
       inner.split(/[,/ ]+/).forEach((piece) => {
         const token = normalizeLineToken(piece);
         if (token) transfers.push(token);

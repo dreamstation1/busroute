@@ -1669,34 +1669,41 @@ const SeoulEngine = (() => {
     </g>`;
   }
 
-  function mapLabelForStop(stop, fallback) {
-    if (fallback) return fallback;
+  // 지도 라벨은 역 이름만: "오목교역1번출구·대학빌딩" → "오목교역", "개화역광역환승센터" → "개화역"
+  function mapLabelForStop(stop) {
     const station = extractStationKey(stop.name);
     if (station) return station;
-    return stop.name.replace(/·.*$/, "").replace(/앞$|후문$|입구$/, "");
+    const head = stop.name.replace(/\([^)]*\)/g, " ");
+    const key = Object.keys(STATION_GEO).sort((a, b) => b.length - a.length)
+      .find((k) => { const at = head.indexOf(k); return at >= 0 && (at === 0 || !/[가-힣]/.test(head[at - 1])); });
+    if (key) return key;
+    const m = head.match(/([가-힣A-Za-z0-9]+역)/);
+    return m ? m[1] : stop.name.replace(/·.*$/, "").trim();
   }
 
-  function chooseMapStops(stops, from, to) {
+  // 지하철 표시(환승 배지)가 있는 정류장만 지도에 올린다. 기·종점 글자는 역일 때만.
+  function chooseMapStops(stops) {
     const n = stops.length;
-    const important = stops.map((s, idx) => ({ ...s, idx })).filter((s, idx) => s.isStation && idx > 0 && idx < n - 1);
-    const chosen = [
-      stops[0] ? { ...stops[0], idx: 0, mapLabel: from, role: "start" } : null,
-      ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s), role: "mid" })),
-      n > 1 ? { ...stops[n - 1], idx: n - 1, mapLabel: to, role: "end" } : null
-    ].filter(Boolean);
+    const withRail = (s) => s.transfers.length > 0;
+    const chosen = [];
+    if (n) chosen.push({ ...stops[0], idx: 0, role: "start", mapLabel: withRail(stops[0]) ? mapLabelForStop(stops[0]) : "" });
+    stops.forEach((s, idx) => {
+      if (!withRail(s)) return;
+      chosen.push({ ...s, idx, role: "mid", mapLabel: mapLabelForStop(s) });
+    });
+    if (n > 1) chosen.push({ ...stops[n - 1], idx: n - 1, role: "end", mapLabel: withRail(stops[n - 1]) ? mapLabelForStop(stops[n - 1]) : "" });
+
+    // 같은 역(1번출구/2번출구 등)은 한 번만
     const deduped = [];
     chosen.forEach((s) => {
-      const key = s.mapLabel || s.name;
-      if (!deduped.some((d) => (d.mapLabel || d.name) === key)) deduped.push(s);
+      if (s.role !== "mid") { deduped.push(s); return; }
+      if (!deduped.some((d) => d.role === "mid" && d.mapLabel === s.mapLabel)) deduped.push(s);
     });
-    const LIMIT = 14;
-    if (deduped.length <= LIMIT) return deduped;
-    const ends = deduped.filter((s) => s.role !== "mid");
-    let mids = deduped.filter((s) => s.role === "mid");
-    // 환승역 우선, 그다음 고르게 솎기
-    mids.sort((a, b) => b.transfers.length - a.transfers.length || a.idx - b.idx);
-    mids = mids.slice(0, LIMIT - ends.length).sort((a, b) => a.idx - b.idx);
-    return [ends[0], ...mids, ...ends.slice(1)].filter(Boolean);
+    const LIMIT = 16;
+    const mids = deduped.filter((s) => s.role === "mid");
+    if (mids.length <= LIMIT) return deduped;
+    const keep = new Set([...mids].sort((a, b) => b.transfers.length - a.transfers.length || a.idx - b.idx).slice(0, LIMIT));
+    return deduped.filter((s) => s.role !== "mid" || keep.has(s));
   }
 
   function textWidth(label, size = 13) {
@@ -1775,7 +1782,7 @@ const SeoulEngine = (() => {
   }
 
   function miniMap(stops, routeColor, from, to, departGu) {
-    const mapStops = chooseMapStops(stops, from, to);
+    const mapStops = chooseMapStops(stops);
     const { stopGeos, pathGeos } = resolveRouteGeos(stops);
     const bounds = computeBounds(pathGeos.concat(stopGeos));
     const routePts = pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
@@ -1791,7 +1798,7 @@ const SeoulEngine = (() => {
         : role === "end" && endIcon ? endIcon
         : stopPts[s.idx] || routePts[0];
       const nT = role === "mid" ? Math.max(1, s.transfers.length) : 1;
-      return { stop: s, role, x: p.x, y: p.y, label: s.mapLabel || mapLabelForStop(s), radius: role === "mid" ? 8 : 12, stackH: nT > 1 ? (nT - 1) * 15 : 0 };
+      return { stop: s, role, x: p.x, y: p.y, label: s.mapLabel || "", radius: role === "mid" ? 8 : 12, stackH: nT > 1 ? (nT - 1) * 15 : 0 };
     });
     // 기·종점 아이콘과 같은 자리에 있는 역은 라벨 생략(배지만 표시)
     const endIcons = items.filter((it) => it.role !== "mid");
@@ -1804,7 +1811,11 @@ const SeoulEngine = (() => {
       });
       if (it.hideLabel) {
         const e = endIcons.find((x) => x.role === (Math.hypot(routePts[0].x - p.x, routePts[0].y - p.y) < 14 ? "start" : "end"));
-        if (e) { it.x = e.x + (e.x < mapWidth / 2 ? 22 : -22); it.y = e.y - it.stackH / 2; }
+        if (e) {
+          it.x = e.x + (e.x < mapWidth / 2 ? 22 : -22);
+          it.y = e.y - it.stackH / 2;
+          if (!e.label) e.label = it.label; // 기·종점 바로 그 자리의 역 이름은 아이콘에 붙인다
+        }
       }
     });
 
@@ -1812,12 +1823,11 @@ const SeoulEngine = (() => {
     const markerBoxes = items.map((it) => ({ x0: it.x - it.radius, x1: it.x + it.radius, y0: it.y - it.radius, y1: it.y + it.radius + it.stackH, isMarker: true }));
     items.forEach((it, i) => { it.self = markerBoxes[i]; });
     const routeSamples = sampleSvgPath(routePts);
-    const labelItems = items.filter((it) => !it.hideLabel);
+    const labelItems = items.filter((it) => !it.hideLabel && it.label);
     const placed = placeLabels(labelItems, [inset, ...markerBoxes], routeSamples);
-    const placements = items.map((it) => (it.hideLabel ? null : placed[labelItems.indexOf(it)]));
+    const placements = items.map((it) => (labelItems.includes(it) ? placed[labelItems.indexOf(it)] : null));
     const routeGus = new Set(stopGeos.map((g) => SeoulGeo.guAt(g.lat, g.lng)).filter(Boolean));
     const terrain = drawGuTerrain(bounds, routeGus);
-    const guLabels = guNameLabels(terrain.visible, bounds, [inset, ...markerBoxes, ...placements.filter(Boolean).map((pl) => pl.box)], routeSamples);
 
     const markers = items.map((it) => {
       if (it.role !== "mid") return "";
@@ -1844,7 +1854,6 @@ const SeoulEngine = (() => {
       <clipPath id="mapClip"><rect x="0" y="0" width="${mapWidth}" height="${mapHeight}"/></clipPath>
       <g clip-path="url(#mapClip)">
         ${terrain.svg}
-        ${guLabels}
         ${routePath ? `<path d="${routePath}" fill="none" stroke="#111" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
         ${markers}
         ${routePts.length > 1 ? routeStartAlong(routePts, routeColor, "arrow") : ""}

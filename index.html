@@ -6,7 +6,7 @@
   <title>서울 버스 노선도</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800;900&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #111;
@@ -865,46 +865,124 @@ const Shared = (() => {
     const a = document.createElement("a");
     a.href = url;
     a.download = name;
+    a.rel = "noopener";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
-  function saveSvg(prefix) {
-    const svg = document.getElementById("routeSvg");
-    if (!svg) return;
-    download(`${prefix}.svg`, new Blob([svg.outerHTML], { type: "image/svg+xml" }));
+  // 다운로드 시 화면과 같은 글꼴이 나오도록 Noto Sans KR을 SVG 안에 직접 넣는다
+  const FONT_CSS_URL = "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800;900&display=swap";
+  const fontFileCache = new Map();
+  let fontCssPromise = null;
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
   }
 
-  function savePng(prefix) {
+  function rangeHits(rangeText, codes) {
+    if (!rangeText) return true;
+    const ranges = rangeText.split(",").map((part) => {
+      const m = part.trim().replace(/^U\+/i, "").split("-");
+      const a = parseInt(m[0].replace(/\?/g, "0"), 16);
+      const b = m[1] ? parseInt(m[1], 16) : parseInt(m[0].replace(/\?/g, "F"), 16);
+      return [a, b];
+    });
+    for (const c of codes) if (ranges.some(([a, b]) => c >= a && c <= b)) return true;
+    return false;
+  }
+
+  async function embeddedFontCss(svg) {
+    try {
+      if (!fontCssPromise) fontCssPromise = fetch(FONT_CSS_URL).then((r) => (r.ok ? r.text() : ""));
+      const css = await fontCssPromise;
+      if (!css) return "";
+      const codes = new Set();
+      for (const ch of svg.textContent || "") codes.add(ch.codePointAt(0));
+      const blocks = css.match(/@font-face\s*{[^}]*}/g) || [];
+      const used = blocks.filter((b) => rangeHits((b.match(/unicode-range:\s*([^;]+);/) || [])[1], codes));
+      const out = await Promise.all(used.map(async (block) => {
+        const url = (block.match(/url\(([^)]+)\)/) || [])[1];
+        if (!url) return "";
+        const clean = url.replace(/["']/g, "");
+        if (!fontFileCache.has(clean)) {
+          fontFileCache.set(clean, fetch(clean).then((r) => r.blob()).then(blobToDataUrl).catch(() => ""));
+        }
+        const data = await fontFileCache.get(clean);
+        return data ? block.replace(url, `"${data}"`) : "";
+      }));
+      return out.join("\n");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  async function exportSvgString() {
     const svg = document.getElementById("routeSvg");
-    if (!svg) return;
-    const xml = new XMLSerializer().serializeToString(svg);
-    const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml" }));
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const scale = 2;
-      canvas.width = svg.viewBox.baseVal.width * scale;
-      canvas.height = svg.viewBox.baseVal.height * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => download(`${prefix}.png`, blob));
-      URL.revokeObjectURL(url);
+    if (!svg) return null;
+    const clone = svg.cloneNode(true);
+    const fontCss = await embeddedFontCss(svg);
+    if (fontCss) {
+      const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+      style.textContent = fontCss;
+      clone.insertBefore(style, clone.firstChild);
+    }
+    clone.setAttribute("width", svg.viewBox.baseVal.width);
+    clone.setAttribute("height", svg.viewBox.baseVal.height);
+    return { xml: new XMLSerializer().serializeToString(clone), w: svg.viewBox.baseVal.width, h: svg.viewBox.baseVal.height };
+  }
+
+  function withBusy(fn) {
+    return async (prefix) => {
+      document.body.style.cursor = "progress";
+      try { await fn(prefix); } finally { document.body.style.cursor = ""; }
     };
-    img.src = url;
   }
 
+  const saveSvg = withBusy(async (prefix) => {
+    const out = await exportSvgString();
+    if (!out) return;
+    download(`${prefix}.svg`, new Blob([out.xml], { type: "image/svg+xml" }));
+  });
+
+  const savePng = withBusy(async (prefix) => {
+    const out = await exportSvgString();
+    if (!out) return;
+    const url = URL.createObjectURL(new Blob([out.xml], { type: "image/svg+xml" }));
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+    // Safari는 SVG 이미지 속 글꼴을 onload 직후 바로 못 그리는 경우가 있어 잠깐 기다린 뒤 그린다
+    await new Promise((r) => setTimeout(r, 300));
+    const canvas = document.createElement("canvas");
+    const scale = 2;
+    canvas.width = out.w * scale;
+    canvas.height = out.h * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    await new Promise((r) => setTimeout(r, 50));
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    download(`${prefix}.png`, blob);
+  });
+
+  // 원본 회차 아이콘: 오른쪽이 열린 ⊂ 모양 + 아래 획 끝 화살표 (반지름 11 기준)
   function uturnArrow() {
-    return `<path d="M 4.5 -1.5 A 5 5 0 1 1 -4.5 -1.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
-      <path d="M 4.5 -1.5 L 7.5 -1.5" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
-      <polygon points="7.5,-1.5 4.5,-4.5 4.5,1.5" fill="#fff"/>`;
+    return `<path d="M 5.6 -4.4 H -1.6 A 4.4 4.4 0 0 0 -1.6 4.4 H 2.6" fill="none" stroke="#fff" stroke-width="2.7" stroke-linejoin="round"/>
+      <polygon points="2.2,0.6 7.4,4.4 2.2,8.2" fill="#fff"/>`;
   }
 
   function turnaroundIcon(fill, side = "right") {
     const r = 11;
-    const circle = `<circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2"/>${uturnArrow()}`;
+    const circle = `<circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2.4"/>${uturnArrow()}`;
 
     if (side === "right") {
       return `<g>
@@ -924,10 +1002,10 @@ const Shared = (() => {
     const r = 11;
     const inner = kind === "uturn"
       ? uturnArrow()
-      : `<path d="M -5 0 L 5 0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-         <polygon points="5,0 1,-4 1,4" fill="#fff"/>`;
+      : `<path d="M -6 0 H 2" fill="none" stroke="#fff" stroke-width="2.7"/>
+         <polygon points="1.4,-4.4 6.8,0 1.4,4.4" fill="#fff"/>`;
     return `<g transform="translate(${x} ${y})">
-      <circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2"/>
+      <circle cx="0" cy="0" r="${r}" fill="${fill}" stroke="#111" stroke-width="2.4"/>
       ${inner}
     </g>`;
   }
@@ -1192,6 +1270,7 @@ const SeoulEngine = (() => {
     "송정역": { lat: 37.5612, lng: 126.8113 },
     "김포공항역": { lat: 37.5624, lng: 126.8013 },
     "개화산역": { lat: 37.5726, lng: 126.8066 },
+    "개화역": { lat: 37.5786, lng: 126.7977 },
     "공항시장역": { lat: 37.5636, lng: 126.8107 },
     "신방화역": { lat: 37.5675, lng: 126.8167 },
     "마곡나루역": { lat: 37.5671, lng: 126.8295 },
@@ -1297,6 +1376,13 @@ const SeoulEngine = (() => {
   function matchStopGeoInfo(name) {
     const station = extractStationKey(name);
     if (station && STATION_GEO[station]) return { ...STATION_GEO[station], conf: "high" };
+    // "개화역광역환승센터"처럼 역 이름 뒤에 글자가 붙은 경우 (앞은 단어 경계여야 함: 남구로역≠구로역)
+    const head = name.replace(/\([^)]*\)/g, " ");
+    const keys = Object.keys(STATION_GEO).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
+      const at = head.indexOf(key);
+      if (at >= 0 && (at === 0 || !/[가-힣]/.test(head[at - 1]))) return { ...STATION_GEO[key], conf: "high" };
+    }
     const clean = name.replace(/·.*$/, "").replace(/\([^)]*\)/g, "").trim();
     const sorted = [...STOP_KEYWORDS].sort((a, b) => b[0].length - a[0].length);
     for (const [kw, geo] of sorted) {
@@ -1638,7 +1724,11 @@ const SeoulEngine = (() => {
         { dx: r + 4, dy: -(r + 8), anchor: "start" },
         { dx: -(r + 4), dy: -(r + 8), anchor: "end" },
         { dx: r + 4, dy: r + 10, anchor: "start" },
-        { dx: -(r + 4), dy: r + 10, anchor: "end" }
+        { dx: -(r + 4), dy: r + 10, anchor: "end" },
+        { dx: r + 14, dy: 0, anchor: "start" },
+        { dx: -(r + 14), dy: 0, anchor: "end" },
+        { dx: 0, dy: -(r + 22), anchor: "middle" },
+        { dx: 0, dy: r + 24, anchor: "middle" }
       ];
       let best = null;
       cands.forEach((c, order) => {
@@ -1653,6 +1743,18 @@ const SeoulEngine = (() => {
         obstacles.forEach((o) => { if (o !== it.self) score += rectsOverlap(box, o) * 8; });
         routeSamples.forEach((s) => {
           if (s.x > box.x0 - 2 && s.x < box.x1 + 2 && s.y > box.y0 - 2 && s.y < box.y1 + 2) score += 30;
+        });
+        // 라벨이 남의 마커에 더 가까우면 헷갈리므로 큰 감점
+        const distTo = (m) => {
+          const dx = Math.max(box.x0 - m.x1, 0, m.x0 - box.x1);
+          const dy = Math.max(box.y0 - m.y1, 0, m.y0 - box.y1);
+          return Math.hypot(dx, dy);
+        };
+        const own = distTo(it.self);
+        obstacles.forEach((o) => {
+          if (o === it.self || !o.isMarker) return;
+          const d = distTo(o);
+          if (d < own + 4) score += 600 + (own + 4 - d) * 40;
         });
         if (!best || score < best.score) best = { score, box, tx, ty: cy + 5, anchor: c.anchor };
       });
@@ -1707,7 +1809,7 @@ const SeoulEngine = (() => {
     });
 
     const inset = { x0: 14, x1: 150, y0: 14, y1: 150 };
-    const markerBoxes = items.map((it) => ({ x0: it.x - it.radius, x1: it.x + it.radius, y0: it.y - it.radius, y1: it.y + it.radius + it.stackH }));
+    const markerBoxes = items.map((it) => ({ x0: it.x - it.radius, x1: it.x + it.radius, y0: it.y - it.radius, y1: it.y + it.radius + it.stackH, isMarker: true }));
     items.forEach((it, i) => { it.self = markerBoxes[i]; });
     const routeSamples = sampleSvgPath(routePts);
     const labelItems = items.filter((it) => !it.hideLabel);

@@ -1088,8 +1088,8 @@ const SeoulEngine = (() => {
     "선유도역": { lat: 37.538028, lng: 126.893475 },
     "당산역": { lat: 37.53438, lng: 126.902295 },
     "오목교역": { lat: 37.524496, lng: 126.875181 },
-    "양천구청역": { lat: 37.512759, lng: 126.866489 },
-    "신정네거리역": { lat: 37.524997, lng: 126.856191 },
+    "양천구청역": { lat: 37.512398, lng: 126.865819 },
+    "신정네거리역": { lat: 37.520209, lng: 126.852954 },
     "신도림역": { lat: 37.508725, lng: 126.891295 },
     "구로디지털단지역": { lat: 37.485266, lng: 126.901401 },
     "영등포구청역": { lat: 37.526065, lng: 126.896057 },
@@ -1138,6 +1138,10 @@ const SeoulEngine = (() => {
     ["신정", { lat: 37.5250, lng: 126.8595 }],
     ["양천구청", { lat: 37.5170, lng: 126.8664 }],
     ["목동", { lat: 37.5240, lng: 126.8720 }],
+    ["이대목동병원", { lat: 37.5367, lng: 126.8865 }],
+    ["목동운동장", { lat: 37.5308, lng: 126.8817 }],
+    ["남부지방법원", { lat: 37.5189, lng: 126.8667 }],
+    ["남부법원", { lat: 37.5189, lng: 126.8667 }],
     ["파리공원", { lat: 37.5285, lng: 126.8775 }],
     ["오목교", { lat: 37.5245, lng: 126.8752 }],
     ["선유도", { lat: 37.5380, lng: 126.8935 }],
@@ -1147,8 +1151,8 @@ const SeoulEngine = (() => {
   ];
 
   const GU_KEYWORDS = [
-    ["신월", "강서구"], ["화곡", "강서구"], ["등촌", "강서구"], ["가양", "강서구"], ["발산", "강서구"], ["마곡", "강서구"], ["방화", "강서구"],
-    ["목동", "양천구"], ["신정", "양천구"], ["신목", "양천구"], ["오목", "양천구"], ["양천", "양천구"], ["파리", "양천구"],
+    ["화곡", "강서구"], ["등촌", "강서구"], ["가양", "강서구"], ["발산", "강서구"], ["마곡", "강서구"], ["방화", "강서구"],
+    ["신월", "양천구"], ["목동", "양천구"], ["신정", "양천구"], ["신목", "양천구"], ["오목", "양천구"], ["양천", "양천구"], ["파리", "양천구"],
     ["영등포", "영등포구"], ["여의도", "영등포구"], ["당산", "영등포구"], ["문래", "영등포구"],
     ["구로", "구로구"], ["고척", "구로구"], ["개봉", "구로구"], ["오류", "구로구"],
     ["금천", "금천구"], ["독산", "금천구"], ["시흥", "금천구"],
@@ -1183,53 +1187,124 @@ const SeoulEngine = (() => {
     return null;
   }
 
-  function matchStopGeo(name) {
+  // 정류장 좌표: 역(STATION_GEO)은 신뢰도 high, 키워드 추정은 low
+  function matchStopGeoInfo(name) {
     const station = extractStationKey(name);
-    if (station && STATION_GEO[station]) return { ...STATION_GEO[station] };
+    if (station && STATION_GEO[station]) return { ...STATION_GEO[station], conf: "high" };
     const clean = name.replace(/·.*$/, "").replace(/\([^)]*\)/g, "").trim();
-    for (const [kw, geo] of STOP_KEYWORDS.sort((a, b) => b[0].length - a[0].length)) {
-      if (clean.includes(kw) || name.includes(kw)) return { ...geo };
+    const sorted = [...STOP_KEYWORDS].sort((a, b) => b[0].length - a[0].length);
+    for (const [kw, geo] of sorted) {
+      if (clean.includes(kw)) return { ...geo, conf: VAGUE_KEYWORDS.has(kw) ? "vague" : "low" };
+    }
+    for (const [kw, geo] of sorted) {
+      if (name.includes(kw)) return { ...geo, conf: VAGUE_KEYWORDS.has(kw) ? "vague" : "low" };
     }
     return null;
   }
 
-  function resolveRouteGeos(stops) {
-    const geos = stops.map((s) => matchStopGeo(s.name));
-    const n = geos.length;
+  function matchStopGeo(name) {
+    const g = matchStopGeoInfo(name);
+    return g ? { lat: g.lat, lng: g.lng } : null;
+  }
 
-    for (let i = 0; i < n; i++) {
-      if (geos[i]) continue;
-      let prev = -1;
-      let next = -1;
-      for (let j = i - 1; j >= 0; j--) if (geos[j]) { prev = j; break; }
-      for (let j = i + 1; j < n; j++) if (geos[j]) { next = j; break; }
-      if (prev >= 0 && next >= 0) {
-        const t = (i - prev) / (next - prev);
-        geos[i] = {
-          lat: geos[prev].lat + (geos[next].lat - geos[prev].lat) * t,
-          lng: geos[prev].lng + (geos[next].lng - geos[prev].lng) * t
-        };
+  // 동네 이름 수준이라 위치가 부정확한 키워드: 다른 기준점이 있으면 노선 모양에서 제외
+  const VAGUE_KEYWORDS = new Set(["신정", "목동", "신월", "영등포", "당산", "시흥"]);
+
+  const KM_LAT = 110.95;
+  const KM_LNG = 111.32 * Math.cos(37.55 * Math.PI / 180);
+  function geoDistKm(a, b) {
+    return Math.hypot((a.lat - b.lat) * KM_LAT, (a.lng - b.lng) * KM_LNG);
+  }
+
+  // 키워드로 대충 잡힌 좌표가 노선을 왔다갔다(지그재그) 하게 만들면 버린다
+  function cleanAnchors(anchors) {
+    const solid = anchors.filter((a) => a.conf !== "vague");
+    if (solid.length >= 2) anchors = solid;
+    let list = [];
+    anchors.forEach((a) => {
+      const prev = list.at(-1);
+      if (prev && geoDistKm(prev, a) < 0.05) {
+        if (a.conf === "high" && prev.conf !== "high") list[list.length - 1] = a;
+        return;
       }
-    }
-
-    for (let i = 0; i < n; i++) {
-      if (geos[i]) continue;
-      for (let j = i - 1; j >= 0; j--) if (geos[j]) { geos[i] = { ...geos[j] }; break; }
-    }
-    for (let i = n - 1; i >= 0; i--) {
-      if (geos[i]) continue;
-      for (let j = i + 1; j < n; j++) if (geos[j]) { geos[i] = { ...geos[j] }; break; }
-    }
-
-    const fallback = { minLat: 37.45, maxLat: 37.60, minLng: 126.78, maxLng: 127.02 };
-    return geos.map((g, i) => {
-      if (g) return g;
-      const t = n <= 1 ? 0.5 : i / (n - 1);
-      return {
-        lat: fallback.minLat + (fallback.maxLat - fallback.minLat) * (0.2 + t * 0.6),
-        lng: fallback.minLng + (fallback.maxLng - fallback.minLng) * (0.15 + t * 0.7)
-      };
+      list.push(a);
     });
+
+    for (let guard = 0; guard < 500 && list.length > 2; guard++) {
+      let worst = -1;
+      let worstScore = 1.45;
+      for (let k = 0; k < list.length; k++) {
+        if (list[k].conf === "high") continue;
+        let score;
+        if (k === 0 || k === list.length - 1) {
+          // 끝점: 바로 옆 점보다 그 다음 점에 더 가까우면 되돌아가는 꼬리
+          const n1 = list[k === 0 ? 1 : k - 1];
+          const n2 = list[k === 0 ? 2 : k - 2];
+          if (!n2) continue;
+          const d1 = geoDistKm(list[k], n1);
+          const d12 = geoDistKm(n1, n2);
+          const d2 = geoDistKm(list[k], n2);
+          score = d2 < d12 ? (d1 + d12) / Math.max(d2, 0.05) : 0;
+        } else {
+          const a = list[k - 1], b = list[k], c = list[k + 1];
+          score = (geoDistKm(a, b) + geoDistKm(b, c)) / Math.max(geoDistKm(a, c), 0.05);
+        }
+        if (score > worstScore) { worstScore = score; worst = k; }
+      }
+      if (worst < 0) break;
+      list.splice(worst, 1);
+      const merged = [];
+      list.forEach((a) => {
+        const prev = merged.at(-1);
+        if (prev && geoDistKm(prev, a) < 0.05) {
+          if (a.conf === "high" && prev.conf !== "high") merged[merged.length - 1] = a;
+          return;
+        }
+        merged.push(a);
+      });
+      list = merged;
+    }
+    return list;
+  }
+
+  function resolveRouteGeos(stops) {
+    const n = stops.length;
+    const raw = stops.map((s, i) => {
+      const g = matchStopGeoInfo(s.name);
+      return g ? { ...g, i } : null;
+    }).filter(Boolean);
+
+    let anchors = cleanAnchors(raw);
+    if (!anchors.length) {
+      const fallback = { minLat: 37.45, maxLat: 37.60, minLng: 126.78, maxLng: 127.02 };
+      anchors = [0, Math.max(0, n - 1)].map((i, k) => ({
+        i, conf: "low",
+        lat: fallback.minLat + (fallback.maxLat - fallback.minLat) * (0.3 + k * 0.4),
+        lng: fallback.minLng + (fallback.maxLng - fallback.minLng) * (0.25 + k * 0.5)
+      }));
+    }
+
+    // 버려진/미확인 정류장은 남은 앵커 사이에 순번 비율로 배치
+    const stopGeos = stops.map((_, i) => {
+      const exact = anchors.find((a) => a.i === i);
+      if (exact) return { lat: exact.lat, lng: exact.lng };
+      let prev = null;
+      let next = null;
+      for (const a of anchors) {
+        if (a.i < i) prev = a;
+        else if (a.i > i && !next) next = a;
+      }
+      if (prev && next) {
+        const t = (i - prev.i) / (next.i - prev.i);
+        return { lat: prev.lat + (next.lat - prev.lat) * t, lng: prev.lng + (next.lng - prev.lng) * t };
+      }
+      const only = prev || next;
+      return { lat: only.lat, lng: only.lng };
+    });
+
+    const pathGeos = anchors.map((a) => ({ lat: a.lat, lng: a.lng }));
+    if (pathGeos.length === 1) pathGeos.push({ ...pathGeos[0] });
+    return { stopGeos, pathGeos };
   }
 
   function smoothRoutePath(points) {
@@ -1243,45 +1318,44 @@ const SeoulEngine = (() => {
       const p1 = points[i];
       const p2 = points[i + 1];
       const p3 = points[Math.min(points.length - 1, i + 2)];
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+      const seg = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      // 제어점이 구간 길이를 넘지 않게 제한 → 오버슈트(삐침) 방지
+      const clamp = (vx, vy) => {
+        const len = Math.hypot(vx, vy);
+        const max = seg * 0.4;
+        return len > max && len > 0 ? [vx * max / len, vy * max / len] : [vx, vy];
+      };
+      const [t1x, t1y] = clamp((p2.x - p0.x) / 6, (p2.y - p0.y) / 6);
+      const [t2x, t2y] = clamp((p3.x - p1.x) / 6, (p3.y - p1.y) / 6);
+      d += ` C ${(p1.x + t1x).toFixed(1)} ${(p1.y + t1y).toFixed(1)}, ${(p2.x - t2x).toFixed(1)} ${(p2.y - t2y).toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
     }
     return d;
   }
 
+  function endpointOffset(points, atEnd, offset = 14) {
+    const a = atEnd ? points.at(-1) : points[0];
+    let b = null;
+    const order = atEnd ? [...points].reverse() : points;
+    for (const p of order) {
+      if (Math.hypot(p.x - a.x, p.y - a.y) > 1) { b = p; break; }
+    }
+    if (!b) return { x: a.x + (atEnd ? offset : -offset), y: a.y };
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: a.x + (dx / len) * offset, y: a.y + (dy / len) * offset };
+  }
+
   function routeEndpointAlong(points, fill, kind) {
     if (!points.length) return "";
-    const last = points.at(-1);
-    const prev = points.at(-2) || last;
-    const dx = last.x - prev.x;
-    const dy = last.y - prev.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const offset = 14;
-    return routeEndpointIcon(
-      last.x + (dx / len) * offset,
-      last.y + (dy / len) * offset,
-      fill,
-      kind
-    );
+    const p = endpointOffset(points, true);
+    return routeEndpointIcon(p.x, p.y, fill, kind);
   }
 
   function routeStartAlong(points, fill, kind = "arrow") {
     if (!points.length) return "";
-    const first = points[0];
-    const next = points[1] || { x: first.x + 1, y: first.y };
-    const dx = next.x - first.x;
-    const dy = next.y - first.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const offset = 14;
-    return routeEndpointIcon(
-      first.x - (dx / len) * offset,
-      first.y - (dy / len) * offset,
-      fill,
-      kind
-    );
+    const p = endpointOffset(points, false);
+    return routeEndpointIcon(p.x, p.y, fill, kind);
   }
 
   function resolveDepartGu(stops, from) {
@@ -1290,41 +1364,39 @@ const SeoulEngine = (() => {
       const g = manual.replace(/\(출발구\)$/, "").trim();
       return g.endsWith("구") ? g : `${g}구`;
     }
-    const fromGu = detectGuFromText(from);
-    if (fromGu) return fromGu;
     const seq = guSequenceForStops(stops, null);
-    return seq.find(Boolean) || "강서구";
+    const firstStopGu = stops.length ? guForStop(stops[0]) : null;
+    if (firstStopGu) return firstStopGu;
+    const fromGu = detectGuFromText(from);
+    if (fromGu && (!seq.length || seq.includes(fromGu))) return fromGu;
+    return seq.find(Boolean) || fromGu || "강서구";
   }
 
-  function resolveStopGeo(stop, index, total, bounds, routeGeos) {
-    if (routeGeos && routeGeos[index]) return routeGeos[index];
-    return matchStopGeo(stop.name) || {
-      lat: bounds.minLat + (bounds.maxLat - bounds.minLat) * 0.5,
-      lng: bounds.minLng + (bounds.maxLng - bounds.minLng) * 0.5
-    };
-  }
-
+  // 위경도 비율을 유지하는 투영 (가로·세로 따로 늘리지 않음)
+  const MAP_AREA = { x0: 34, x1: 421, y0: 158, y1: 706 };
   function computeBounds(geos) {
     const lats = geos.map((g) => g.lat);
     const lngs = geos.map((g) => g.lng);
-    const padLat = 0.012;
-    const padLng = 0.015;
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const wKm = Math.max((maxLng - minLng) * KM_LNG, 2.5);
+    const hKm = Math.max((maxLat - minLat) * KM_LAT, 2.5);
+    const aw = MAP_AREA.x1 - MAP_AREA.x0;
+    const ah = MAP_AREA.y1 - MAP_AREA.y0;
+    const scale = Math.min(aw / wKm, ah / hKm);
     return {
-      minLat: Math.min(...lats) - padLat,
-      maxLat: Math.max(...lats) + padLat,
-      minLng: Math.min(...lngs) - padLng,
-      maxLng: Math.max(...lngs) + padLng
+      cLat: (minLat + maxLat) / 2,
+      cLng: (minLng + maxLng) / 2,
+      cx: (MAP_AREA.x0 + MAP_AREA.x1) / 2,
+      cy: (MAP_AREA.y0 + MAP_AREA.y1) / 2,
+      scale
     };
   }
 
-  function projectGeo(lat, lng, bounds) {
-    const padX = 28;
-    const padY = 42;
-    const w = mapWidth - padX * 2;
-    const h = mapHeight - padY * 2;
+  function projectGeo(lat, lng, b) {
     return {
-      x: padX + ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * w,
-      y: padY + ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * h
+      x: b.cx + (lng - b.cLng) * KM_LNG * b.scale,
+      y: b.cy - (lat - b.cLat) * KM_LAT * b.scale
     };
   }
 
@@ -1350,51 +1422,119 @@ const SeoulEngine = (() => {
   }
 
   function chooseMapStops(stops, from, to) {
-    const important = stops.filter((s) => s.isStation);
+    const n = stops.length;
+    const important = stops.map((s, idx) => ({ ...s, idx })).filter((s, idx) => s.isStation && idx > 0 && idx < n - 1);
     const chosen = [
-      stops[0] ? { ...stops[0], mapLabel: from } : null,
-      ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s) })),
-      stops.at(-1) ? { ...stops.at(-1), mapLabel: to } : null
+      stops[0] ? { ...stops[0], idx: 0, mapLabel: from, role: "start" } : null,
+      ...important.map((s) => ({ ...s, mapLabel: mapLabelForStop(s), role: "mid" })),
+      n > 1 ? { ...stops[n - 1], idx: n - 1, mapLabel: to, role: "end" } : null
     ].filter(Boolean);
     const deduped = [];
     chosen.forEach((s) => {
       const key = s.mapLabel || s.name;
       if (!deduped.some((d) => (d.mapLabel || d.name) === key)) deduped.push(s);
     });
-    return deduped.slice(0, 8);
+    if (deduped.length <= 8) return deduped;
+    const ends = deduped.filter((s) => s.role !== "mid");
+    const mids = deduped.filter((s) => s.role === "mid").slice(0, 8 - ends.length);
+    return [ends[0], ...mids, ...ends.slice(1)].filter(Boolean);
+  }
+
+  function textWidth(label, size = 13) {
+    return [...String(label)].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? size * 1.0 : size * 0.6), 0);
+  }
+
+  function rectsOverlap(a, b) {
+    const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+    const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    return ox > 0 && oy > 0 ? ox * oy : 0;
+  }
+
+  // 라벨끼리, 노선선, 마커, 인셋과 겹치지 않는 위치를 고른다
+  function placeLabels(items, obstacles, routeSamples) {
+    const placed = [];
+    const H = 16;
+    return items.map((it) => {
+      const w = textWidth(it.label);
+      const r = it.radius;
+      const cands = [
+        { dx: r + 6, dy: 0, anchor: "start" },
+        { dx: -(r + 6), dy: 0, anchor: "end" },
+        { dx: 0, dy: -(r + 12), anchor: "middle" },
+        { dx: 0, dy: r + 14, anchor: "middle" },
+        { dx: r + 4, dy: -(r + 8), anchor: "start" },
+        { dx: -(r + 4), dy: -(r + 8), anchor: "end" },
+        { dx: r + 4, dy: r + 10, anchor: "start" },
+        { dx: -(r + 4), dy: r + 10, anchor: "end" }
+      ];
+      let best = null;
+      cands.forEach((c, order) => {
+        const tx = it.x + c.dx;
+        const cy = it.y + c.dy;
+        const x0 = c.anchor === "start" ? tx : c.anchor === "end" ? tx - w : tx - w / 2;
+        const box = { x0: x0 - 2, x1: x0 + w + 2, y0: cy - H / 2, y1: cy + H / 2 };
+        let score = order * 2;
+        if (box.x0 < 4 || box.x1 > mapWidth - 4 || box.y0 < 4 || box.y1 > mapHeight - 4) score += 5000;
+        placed.forEach((p) => { score += rectsOverlap(box, p) * 20; });
+        obstacles.forEach((o) => { if (o !== it.self) score += rectsOverlap(box, o) * 8; });
+        routeSamples.forEach((s) => {
+          if (s.x > box.x0 - 2 && s.x < box.x1 + 2 && s.y > box.y0 - 2 && s.y < box.y1 + 2) score += 30;
+        });
+        if (!best || score < best.score) best = { score, box, tx, ty: cy + 5, anchor: c.anchor };
+      });
+      placed.push(best.box);
+      return best;
+    });
+  }
+
+  function sampleSvgPath(points, step = 5) {
+    const out = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      const n = Math.max(1, Math.ceil(len / step));
+      for (let k = 0; k <= n; k++) out.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    }
+    return out;
   }
 
   function miniMap(stops, routeColor, from, to, departGu) {
     const mapStops = chooseMapStops(stops, from, to);
-    const routeGeos = resolveRouteGeos(stops);
-    const bounds = computeBounds(routeGeos);
-    const routePts = routeGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
+    const { stopGeos, pathGeos } = resolveRouteGeos(stops);
+    const bounds = computeBounds(pathGeos.concat(stopGeos));
+    const routePts = pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
     const routePath = smoothRoutePath(routePts);
+    const stopPts = stopGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
 
-    const labelCoords = mapStops.map((s) => {
-      const idx = stops.findIndex((st) => st.name === s.name);
-      const i = idx >= 0 ? idx : 0;
-      return projectGeo(routeGeos[i].lat, routeGeos[i].lng, bounds);
+    const startIcon = routePts.length > 1 ? endpointOffset(routePts, false) : null;
+    const endIcon = routePts.length > 1 ? endpointOffset(routePts, true) : null;
+
+    const items = mapStops.map((s) => {
+      const role = s.role;
+      const p = role === "start" && startIcon ? startIcon
+        : role === "end" && endIcon ? endIcon
+        : stopPts[s.idx] || routePts[0];
+      return { stop: s, role, x: p.x, y: p.y, label: s.mapLabel || mapLabelForStop(s), radius: role === "mid" ? 8 : 12 };
     });
 
-    const labels = mapStops.map((s, i) => {
-      const p = labelCoords[i];
-      const label = s.mapLabel || mapLabelForStop(s);
-      const isStart = i === 0;
-      const isEnd = i === mapStops.length - 1;
-      const toLeft = p.x > mapWidth * 0.55;
-      const tx = toLeft ? p.x - 14 : p.x + 14;
-      const anchor = toLeft ? "end" : "start";
-      const dot = (isStart || isEnd)
-        ? ""
-        : `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="#111" stroke-width="1.8"/>`;
-      const xfer = (!isStart && !isEnd && s.transfers.length === 1)
-        ? marker(p.x, p.y, transferColors[s.transfers[0]] || "#777", lineLabels[s.transfers[0]] || s.transfers[0], 14)
-        : "";
-      return `<g>
-        ${dot}${xfer}
-        <text x="${tx}" y="${p.y + 5}" text-anchor="${anchor}" font-size="13" font-weight="900">${esc(label)}</text>
-      </g>`;
+    const inset = { x0: 14, x1: 140, y0: 14, y1: 140 };
+    const markerBoxes = items.map((it) => ({ x0: it.x - it.radius, x1: it.x + it.radius, y0: it.y - it.radius, y1: it.y + it.radius }));
+    items.forEach((it, i) => { it.self = markerBoxes[i]; });
+    const routeSamples = sampleSvgPath(routePts);
+    const placements = placeLabels(items, [inset, ...markerBoxes], routeSamples);
+
+    const markers = items.map((it) => {
+      if (it.role !== "mid") return "";
+      const s = it.stop;
+      if (s.transfers.length === 1) {
+        return marker(it.x, it.y, transferColors[s.transfers[0]] || "#777", lineLabels[s.transfers[0]] || s.transfers[0], 14);
+      }
+      return `<circle cx="${it.x}" cy="${it.y}" r="4.5" fill="#fff" stroke="#111" stroke-width="2"/>`;
+    }).join("");
+
+    const labels = items.map((it, i) => {
+      const pl = placements[i];
+      return `<text x="${pl.tx.toFixed(1)}" y="${pl.ty.toFixed(1)}" text-anchor="${pl.anchor}" font-size="13" font-weight="900" stroke="#fff" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke">${esc(it.label)}</text>`;
     }).join("");
 
     const insetGu = departGu || guSequenceForStops(stops, null).find(Boolean) || "강서구";
@@ -1402,6 +1542,7 @@ const SeoulEngine = (() => {
     return `<g>
       ${drawGuTerrain(bounds)}
       ${routePath ? `<path d="${routePath}" fill="none" stroke="#111" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>` : ""}
+      ${markers}
       ${routePts.length > 1 ? routeStartAlong(routePts, routeColor, "arrow") : ""}
       ${routePts.length > 1 ? routeEndpointAlong(routePts, routeColor, "uturn") : ""}
       ${labels}

@@ -718,7 +718,7 @@ const Shared = (() => {
     "5": "#7b56b7", "6": "#b76b2a", "7": "#6f8e25", "8": "#e45b94",
     "9": "#b2a57b", "경의": "#66b68a", "경의중앙": "#66b68a", "공항": "#00a1b5",
     "신분당": "#d4003b", "경춘": "#00a84d", "서해": "#8fc31f", "경강": "#005bac",
-    "용인에버라인": "#56ad2d", "GTX-A": "#a76ab0", "GTX-B": "#a76ab0"
+    "용인에버라인": "#56ad2d", "신림": "#6789ca", "수인분당": "#f5a200", "GTX-A": "#a76ab0", "GTX-B": "#a76ab0"
   };
 
   const lineNames = {
@@ -726,16 +726,16 @@ const Shared = (() => {
     "5": "지하철5호선", "6": "지하철6호선", "7": "지하철7호선", "8": "지하철8호선",
     "9": "지하철9호선", "경의": "경의중앙선", "경의중앙": "경의중앙선", "공항": "공항철도",
     "신분당": "신분당선", "경춘": "경춘선", "서해": "서해선", "경강": "경강선",
-    "용인에버라인": "용인에버라인", "GTX-A": "GTX-A", "GTX-B": "GTX-B"
+    "용인에버라인": "용인에버라인", "신림": "신림선", "수인분당": "수인분당선", "GTX-A": "GTX-A", "GTX-B": "GTX-B"
   };
 
   const lineLabels = {
     "경의": "경의", "경의중앙": "경의", "공항": "공", "신분당": "신",
-    "경춘": "춘", "서해": "서", "경강": "강", "용인에버라인": "용",
+    "경춘": "춘", "서해": "서", "경강": "강", "용인에버라인": "용", "신림": "신림", "수인분당": "수인",
     "GTX-A": "A", "GTX-B": "B"
   };
 
-  const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "신분당", "경춘", "경의중앙", "경의", "공항", "서해", "경강", "용인에버라인", "GTX-A", "GTX-B"];
+  const lineOrder = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "신분당", "경춘", "경의중앙", "경의", "공항", "서해", "경강", "용인에버라인", "신림", "수인분당", "GTX-A", "GTX-B"];
 
   const stationEnglish = {
     "서울역": "Seoul Station", "신정네거리역": "Sinjeongnegeori Station",
@@ -762,7 +762,7 @@ const Shared = (() => {
 
   function normalizeLineToken(token) {
     const cleaned = token.replace(/지하철/g, "").replace(/호선/g, "").replace(/신정지선/g, "").replace(/선/g, "").replace(/[()]/g, "").trim();
-    const match = cleaned.match(/GTX-[AB]|용인에버라인|경의중앙|신분당|경춘|서해|경강|[1-9]|경의|공항/);
+    const match = cleaned.match(/GTX-[AB]|용인에버라인|경의중앙|신분당|수인분당|신림|경춘|서해|경강|[1-9]|경의|공항/);
     return match ? match[0] : "";
   }
 
@@ -1089,7 +1089,11 @@ const SeoulEngine = (() => {
 
   function guForStop(stop) {
     const gu = detectGuFromText(stop.name);
-    return gu && GU_GEO[gu] ? gu : null;
+    if (gu && GU_GEO[gu]) return gu;
+    // 이름으로 못 찾으면 위치(역·랜드마크 좌표)로 실제 구 경계에서 찾기
+    const g = matchStopGeoInfo(stop.name, stop.transfers || []);
+    if (g && g.conf !== "vague") return SeoulGeo.guAt(g.lat, g.lng);
+    return null;
   }
 
   function guSequenceForStops(stops, firstGuOverride) {
@@ -1180,7 +1184,15 @@ const SeoulEngine = (() => {
     return Math.max(48, Math.min(92, longest * 4.15 + englishUnits + transferBoost));
   }
 
-  function directionTitle(x, y, titleA, titleB, routeColor, layout) {
+  function directionTitle(x, y, titleA, titleB, routeColor, layout, maxWidth = 280) {
+    const len = (t) => [...String(t)].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? 1 : 0.6), 0);
+    // 한 줄에 안 들어가면(정류장 이름과 겹침) 두 줄로, 그래도 길면 글자 크기를 줄인다
+    if (layout === "single" && (len(titleA) + len(titleB) + 2.4) * 25 > maxWidth) layout = "double";
+    if (layout !== "single") {
+      const fs = Math.max(17, Math.min(31, maxWidth / (Math.max(len(titleA), len(titleB) + 1.4) * 1.02)));
+      return `<text x="${x}" y="${y}" font-size="${fs.toFixed(1)}" font-weight="900" fill="${routeColor}">${esc(titleA)}</text>
+      <text x="${x}" y="${y + fs * 1.45}" font-size="${fs.toFixed(1)}" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
+    }
     if (layout === "single") {
       return `<text x="${x}" y="${y + 23}" font-size="25" font-weight="900" fill="${routeColor}">
         ${esc(titleA)} <tspan dx="12">→</tspan><tspan dx="12">${esc(titleB)}</tspan>
@@ -1314,6 +1326,21 @@ const SeoulEngine = (() => {
     return STATION_GEO[key] ? { ...STATION_GEO[key] } : null;
   }
   const STATION_KEYS_BY_LENGTH = Object.keys(STATION_GEO).sort((a, b) => b.length - a.length);
+  // 정류장 이름 안에서 역 이름 찾기: 앞은 단어 경계, 뒤는 끝/기호/숫자/출구·광역·환승 등만 허용
+  // (남구로역≠구로역, 대림역삼아파트≠대림역)
+  const STATION_TAIL_OK = /^($|[^가-힣]|번|출구|광역|환승|앞|입구|사거리|오거리|삼거리|버스|정류장|방면|건너)/;
+  function findStationKeyIn(text) {
+    const head = String(text).replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+    for (const key of STATION_KEYS_BY_LENGTH) {
+      let at = head.indexOf(key);
+      while (at >= 0) {
+        const before = at === 0 || !/[가-힣]/.test(head[at - 1]);
+        if (before && STATION_TAIL_OK.test(head.slice(at + key.length))) return key;
+        at = head.indexOf(key, at + 1);
+      }
+    }
+    return "";
+  }
 
 
   const GU_GEO = {
@@ -1352,6 +1379,13 @@ const SeoulEngine = (() => {
     ["양천구청", { lat: 37.5170, lng: 126.8664 }],
     ["목동", { lat: 37.5240, lng: 126.8720 }],
     ["이대목동병원", { lat: 37.5367, lng: 126.8865 }],
+    ["강남세브란스", { lat: 37.4927, lng: 127.0461 }],
+    ["개포한신", { lat: 37.4868, lng: 127.0528 }],
+    ["개포래미안포레스트", { lat: 37.4800, lng: 127.0553 }],
+    ["개포우성", { lat: 37.4830, lng: 127.0560 }],
+    ["능인선원", { lat: 37.4720, lng: 127.0540 }],
+    ["구룡사", { lat: 37.4700, lng: 127.0505 }],
+    ["코트라", { lat: 37.4636, lng: 127.0430 }],
     ["목동운동장", { lat: 37.5308, lng: 126.8817 }],
     ["남부지방법원", { lat: 37.5189, lng: 126.8667 }],
     ["남부법원", { lat: 37.5189, lng: 126.8667 }],
@@ -1407,11 +1441,8 @@ const SeoulEngine = (() => {
     const station = extractStationKey(name);
     if (station && STATION_GEO[station]) return { ...stationGeo(station, transfers), conf: "high" };
     // "개화역광역환승센터"처럼 역 이름 뒤에 글자가 붙은 경우 (앞은 단어 경계여야 함: 남구로역≠구로역)
-    const head = name.replace(/\([^)]*\)/g, " ");
-    for (const key of STATION_KEYS_BY_LENGTH) {
-      const at = head.indexOf(key);
-      if (at >= 0 && (at === 0 || !/[가-힣]/.test(head[at - 1]))) return { ...stationGeo(key, transfers), conf: "high" };
-    }
+    const found = findStationKeyIn(name);
+    if (found) return { ...stationGeo(found, transfers), conf: "high" };
     const clean = name.replace(/·.*$/, "").replace(/\([^)]*\)/g, "").trim();
     const sorted = [...STOP_KEYWORDS].sort((a, b) => b[0].length - a[0].length);
     for (const [kw, geo] of sorted) {
@@ -1703,8 +1734,7 @@ const SeoulEngine = (() => {
     const station = extractStationKey(stop.name);
     if (station) return station;
     const head = stop.name.replace(/\([^)]*\)/g, " ");
-    const key = STATION_KEYS_BY_LENGTH
-      .find((k) => { const at = head.indexOf(k); return at >= 0 && (at === 0 || !/[가-힣]/.test(head[at - 1])); });
+    const key = findStationKeyIn(stop.name);
     if (key) return key;
     const m = head.match(/([가-힣A-Za-z0-9]+역)/);
     return m ? m[1] : stop.name.replace(/·.*$/, "").trim();
@@ -1940,7 +1970,7 @@ const SeoulEngine = (() => {
     const departGu = resolveDepartGu(outbound, from);
     const x0 = 980;
     const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout, departGu);
-    const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout, departGu);
+    const bottom = routeRow(inbound.length ? inbound : outbound, 610, x0, to, from, routeColor, "bottom", directionLayout, inbound.length ? null : departGu);
     const width = Math.max(1500, top.width, bottom.width);
     const height = 740;
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);

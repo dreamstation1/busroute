@@ -790,7 +790,7 @@ const Shared = (() => {
 
   function extractStationKey(name) {
     const matches = [...name.matchAll(/[가-힣A-Za-z0-9·]+?역(?=$|[0-9]|번|출구|·|\s|[.,/()-])/g)]
-      .map((m) => m[0].replace(/[·]/g, ""));
+      .map((m) => m[0].split("·").at(-1));
     return matches.at(-1) || "";
   }
 
@@ -1177,11 +1177,23 @@ const SeoulEngine = (() => {
     }).join("")}</g>`;
   }
 
+  function labelFontSize(stop) {
+    const nameLength = [...stop.name].length;
+    return nameLength > 26 ? 11.4 : nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
+  }
+
+  // 기울어진(45°) 정류장 이름이 차지하는 길이(px)
+  function labelTextLength(stop) {
+    const fs = labelFontSize(stop);
+    const nameW = [...stop.name].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? fs * 1.0 : /[A-Z0-9]/.test(ch) ? fs * 0.66 : fs * 0.55), 0);
+    const engW = stop.english ? [...stop.english].length * 8.2 * 0.56 : 0;
+    return Math.max(nameW, engW);
+  }
+
   function labelBlock(x, y, stop, side = "above") {
     const angle = -45;
     const dy = -17;
-    const nameLength = [...stop.name].length;
-    const fontSize = nameLength > 18 ? 12.6 : nameLength > 13 ? 13.4 : 14.5;
+    const fontSize = labelFontSize(stop);
     const labelX = x + 8;
     const labelY = y + dy;
     const english = stop.english
@@ -1240,7 +1252,8 @@ const SeoulEngine = (() => {
     const guMarks = guSegmentLabels(stops, points, y, firstGuOverride);
 
     return {
-      width: endX + 125,
+      // 마지막 쪽 긴 이름이 그림 밖으로 안 나가게 기울어진 글자 끝까지 폭에 포함
+      width: Math.max(endX + 125, ...stops.map((stop, i) => points[i] + 8 + labelTextLength(stop) * 0.7071 + 24)),
       svg: `<g>
         ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
         <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>

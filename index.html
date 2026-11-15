@@ -572,7 +572,7 @@
 
       <p class="hint">
         <strong>서울 전용:</strong> 상·하행을 따로 입력합니다. 좌측 <strong>노선지도</strong> + 우측 <strong>상·하행 2줄</strong> 레이아웃입니다.
-      </p>
+       한강을 건너는 곳은 자동으로 표시되며, 위치가 틀리면 두 정류장 사이에 <strong>|한강|</strong> 또는 <strong>~한강~</strong> 한 줄을 넣어 직접 지정할 수 있습니다.</p>
     </section>
 
     <!-- ===== 경기도 패널 ===== -->
@@ -871,7 +871,9 @@ const Shared = (() => {
   }
 
   function parseStops(text, opts) {
-    return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => parseStopLine(line, opts));
+    return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+      .filter((line) => !/^[|~\-=＊*]\s*한\s*강\s*[|~\-=＊*]$/.test(line))
+      .map((line) => parseStopLine(line, opts));
   }
 
   function marker(x, y, fill, label = "", size = 20) {
@@ -1450,6 +1452,18 @@ const SeoulEngine = (() => {
     ["목동", { lat: 37.5240, lng: 126.8720 }],
     ["이대목동병원", { lat: 37.5367, lng: 126.8865 }],
     ["강남세브란스", { lat: 37.4927, lng: 127.0461 }],
+    ["여의도환승센터", { lat: 37.5257, lng: 126.9235 }],
+    ["여의도공원", { lat: 37.5260, lng: 126.9220 }],
+    ["파크원", { lat: 37.5268, lng: 126.9275 }],
+    ["LG트윈", { lat: 37.5283, lng: 126.9320 }],
+    ["한국경제인협회", { lat: 37.5262, lng: 126.9187 }],
+    ["전경련", { lat: 37.5262, lng: 126.9187 }],
+    ["여의도순복음교회", { lat: 37.5285, lng: 126.9180 }],
+    ["여의도", { lat: 37.5250, lng: 126.9250 }],
+    ["마포대교남단", { lat: 37.5310, lng: 126.9340 }],
+    ["마포대교북단", { lat: 37.5395, lng: 126.9445 }],
+    ["영등포로터리", { lat: 37.5185, lng: 126.9060 }],
+    ["영등포시장", { lat: 37.5222, lng: 126.9048 }],
     ["세브란스병원", { lat: 37.5622, lng: 126.9408 }],
     ["연세대학교", { lat: 37.5640, lng: 126.9385 }],
     ["연세대", { lat: 37.5640, lng: 126.9385 }],
@@ -2000,6 +2014,23 @@ const SeoulEngine = (() => {
     return new Set(flips);
   }
 
+  // "|한강|", "~한강~", "-한강-" 줄을 찾아 정류장 사이 위치로 바꾸고, 정류장 목록에서는 뺀다
+  const RIVER_MARK_LINE = /^\s*[|~\-=＊*]\s*한\s*강\s*[|~\-=＊*]\s*$/;
+  function splitRiverMarks(text) {
+    const kept = [];
+    const marks = new Set();
+    let count = 0;
+    String(text).split(/\r?\n/).forEach((line) => {
+      if (RIVER_MARK_LINE.test(line)) {
+        if (count > 0) marks.add(count - 1);
+        return;
+      }
+      if (line.trim()) count++;
+      kept.push(line);
+    });
+    return { text: kept.join("\n"), marks: marks.size ? marks : null };
+  }
+
   function riverCrossMark(x, y) {
     return `<g>
       <rect x="${x - 11}" y="${y - 19}" width="22" height="46" fill="#d3d5d8"/>
@@ -2164,8 +2195,10 @@ const SeoulEngine = (() => {
     const directionLayout = $("s_directionLayout").value;
     const showWatermark = $("s_adminPassword").value !== "5263815731";
     const opts = { autoEnglish: $("s_autoEnglish").checked, englishStyle: "seoul" };
-    const outbound = parseStops($("s_outbound").value, opts);
-    const inboundText = $("s_inbound").value.trim();
+    const outSplit = splitRiverMarks($("s_outbound").value);
+    const inSplit = splitRiverMarks($("s_inbound").value);
+    const outbound = parseStops(outSplit.text, opts);
+    const inboundText = inSplit.text.trim();
     const inbound = inboundText
       ? parseStops(inboundText, opts)
       : ($("s_autoReverse").checked ? [...outbound].reverse() : []);
@@ -2173,11 +2206,14 @@ const SeoulEngine = (() => {
     const departGu = resolveDepartGu(outbound, from);
     const x0 = 980;
     const outPath = outbound.length ? resolveRouteGeos(outbound).pathGeos : [];
-    const topCross = riverCrossings(outbound);
+    // 정류장 칸에 |한강| 또는 ~한강~ 을 넣었으면 그 위치를 그대로 쓰고, 없으면 자동 판단
+    const topCross = outSplit.marks || riverCrossings(outbound);
     const bottomStops = inbound.length ? inbound : outbound;
     const bottomCross = inboundText
-      ? riverCrossings(bottomStops, { startGeo: outPath.at(-1), endGeo: outPath[0] })
-      : riverCrossings(bottomStops);
+      ? (inSplit.marks || riverCrossings(bottomStops, { startGeo: outPath.at(-1), endGeo: outPath[0] }))
+      : (outSplit.marks
+        ? new Set([...outSplit.marks].map((i) => outbound.length - 2 - i))
+        : riverCrossings(bottomStops));
     const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout, departGu, topCross);
     const bottom = routeRow(bottomStops, 610, x0, to, from, routeColor, "bottom", directionLayout, inbound.length ? null : departGu, bottomCross);
     const width = Math.max(1500, top.width, bottom.width);

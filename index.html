@@ -546,6 +546,10 @@
         지도 글자에 흰 테두리
       </label>
       <label class="check">
+        <input id="s_showRegion" type="checkbox" checked />
+        정류장 아래 행정구역(점선·구 이름) 표시
+      </label>
+      <label class="check">
         <input id="s_autoRiver" type="checkbox" checked />
         한강 표시 자동 (|한강| 직접 입력이 있으면 그걸 우선)
       </label>
@@ -858,7 +862,15 @@ const Shared = (() => {
     let manualEnglish = "";
     let isMedian = false;
     let region = "";
-    raw = raw.replace(REGION_SUFFIX, (_, r) => { region = normalizeRegion(r); return ""; }).trim();
+    // "/행정구역"은 줄 끝이나 "정류장명/서울(동작구)|9|영문" 처럼 첫 | 앞에 올 수 있음
+    {
+      const pieces = raw.split("|");
+      pieces[0] = pieces[0].replace(REGION_SUFFIX, (_, r) => { region = normalizeRegion(r); return ""; });
+      if (!region && pieces.length > 1) {
+        pieces[pieces.length - 1] = pieces.at(-1).replace(REGION_SUFFIX, (_, r) => { region = normalizeRegion(r); return ""; });
+      }
+      raw = pieces.join("|").trim();
+    }
 
     raw = raw.replace(/\[([^\]]+)\]/g, (_, inner) => {
       manualEnglish = inner.trim();
@@ -1194,6 +1206,7 @@ const SeoulEngine = (() => {
   function regionFromName(name) {
     const clean = String(name).replace(/\([^)]*\)/g, " ").replace(/·/g, " ");
     for (const gu of SEOUL_GU_NAMES()) if (clean.includes(gu)) return `서울(${gu})`;
+    if (/김포공항|공항시장|한국공항공사/.test(clean)) return "서울(강서구)";
     const office = clean.match(/([가-힣]{1,4})구청/);
     if (office && SEOUL_GU_NAMES().includes(`${office[1]}구`)) return `서울(${office[1]}구)`;
     // 시 이름 키워드는 단어 앞에서만 (예: '신한은행신월동'의 '행신'은 고양시 아님)
@@ -1372,7 +1385,8 @@ const SeoulEngine = (() => {
     const isBottom = rowSide === "bottom";
     const titleY = isBottom ? y - 110 : y - 92;
     const returnX = isBottom ? x0 - 58 : endX + 58;
-    const guMarks = guSegmentLabels(stops, points, y, firstGuOverride, geoOpts);
+    const showRegion = document.getElementById("s_showRegion") ? document.getElementById("s_showRegion").checked : true;
+    const guMarks = showRegion ? guSegmentLabels(stops, points, y, firstGuOverride, geoOpts) : "";
 
     return {
       // 마지막 쪽 긴 이름이 그림 밖으로 안 나가게 기울어진 글자 끝까지 폭에 포함
@@ -1505,6 +1519,11 @@ const SeoulEngine = (() => {
   const STATION_TAIL_OK = /^($|[^가-힣]|번|출구|광역|환승|앞|입구|사거리|오거리|삼거리|버스|정류장|방면|건너)/;
   function findStationKeyIn(text) {
     const head = String(text).replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
+    // "숙대입구.서울시교육청역"처럼 점(.)·가운뎃점으로 나뉜 앞부분이 역 이름인 경우
+    for (const seg of head.split(/[.·,]/).map((x) => x.trim()).filter(Boolean)) {
+      if (STATION_GEO[seg]) return seg;
+      if (!/역$/.test(seg) && STATION_GEO[`${seg}역`]) return `${seg}역`;
+    }
     for (const key of STATION_KEYS_BY_LENGTH) {
       let at = head.indexOf(key);
       while (at >= 0) {
@@ -1555,6 +1574,15 @@ const SeoulEngine = (() => {
     ["이대목동병원", { lat: 37.5367, lng: 126.8865 }],
     ["강남세브란스", { lat: 37.4927, lng: 127.0461 }],
     ["여의도환승센터", { lat: 37.5257, lng: 126.9235 }],
+    ["후암삼거리", { lat: 37.5490, lng: 126.9775 }],
+    ["후암시장", { lat: 37.5478, lng: 126.9768 }],
+    ["용산중고", { lat: 37.5455, lng: 126.9752 }],
+    ["남영동주민센터", { lat: 37.5428, lng: 126.9735 }],
+    ["용산우체국", { lat: 37.5318, lng: 126.9695 }],
+    ["한강대교북단", { lat: 37.5235, lng: 126.9625 }],
+    ["노들섬", { lat: 37.5178, lng: 126.9590 }],
+    ["한강대교남단", { lat: 37.5130, lng: 126.9555 }],
+    ["노량진수산시장", { lat: 37.5130, lng: 126.9395 }],
     ["원효대교북단", { lat: 37.5298, lng: 126.9478 }],
     ["관악고등학교", { lat: 37.5262, lng: 126.8908 }],
     ["양평신동아", { lat: 37.5268, lng: 126.8915 }],
@@ -1944,6 +1972,8 @@ const SeoulEngine = (() => {
 
   // 지도 라벨은 역 이름만: "오목교역1번출구·대학빌딩" → "오목교역", "개화역광역환승센터" → "개화역"
   function mapLabelForStop(stop) {
+    const known = findStationKeyIn(stop.name);
+    if (known && !STATION_ALIASES[known]) return known;
     const station = extractStationKey(stop.name);
     if (station && STATION_ALIASES[station]) return STATION_ALIASES[station][0];
     if (station && /기차역$/.test(station) && STATION_GEO[station.replace(/기차역$/, "역")]) return station.replace(/기차역$/, "역");
@@ -2378,7 +2408,7 @@ const SeoulEngine = (() => {
 
   function bind() {
     ["s_routeNo", "s_routeColor", "s_from", "s_to", "s_departGu", "s_directionLayout", "s_outbound", "s_inbound",
-      "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish", "s_mapHalo", "s_autoRiver"]
+      "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish", "s_mapHalo", "s_autoRiver", "s_showRegion"]
       .forEach((id) => $(id).addEventListener("input", () => App.renderIfActive("seoul")));
     $("s_renderBtn").addEventListener("click", render);
     $("s_svgBtn").addEventListener("click", () => Shared.saveSvg(`seoul-bus-route-${$("s_routeNo").value || "template"}`));

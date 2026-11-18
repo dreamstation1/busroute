@@ -535,7 +535,7 @@
 
       <label class="check">
         <input id="s_autoReverse" type="checkbox" checked />
-        하행이 비어 있으면 상행을 역순으로 사용
+        하행이 비어 있으면 상행을 역순으로 사용 (끄면 편도 노선 · 급행 등)
       </label>
       <label class="check">
         <input id="s_autoEnglish" type="checkbox" checked />
@@ -2122,7 +2122,7 @@ const SeoulEngine = (() => {
   // 라벨끼리, 노선선, 마커, 인셋과 겹치지 않는 위치를 고른다
   function placeLabels(items, obstacles, routeSamples) {
     const placed = [];
-    const H = 16;
+    const H = 20;
     return items.map((it) => {
       const w = textWidth(it.label);
       const r = it.radius;
@@ -2369,6 +2369,22 @@ const SeoulEngine = (() => {
     const labelItems = items.filter((it) => !it.hideLabel && it.label);
     const placed = placeLabels(labelItems, [inset, ...markerBoxes], routeSamples);
     const placements = items.map((it) => (labelItems.includes(it) ? placed[labelItems.indexOf(it)] : null));
+    // 역 이름끼리 겹치면 환승 노선이 적은 쪽(기·종점 제외)을 지도에서 생략
+    for (let changed = true; changed;) {
+      changed = false;
+      for (let i = 0; i < items.length && !changed; i++) {
+        for (let j = i + 1; j < items.length && !changed; j++) {
+          const a = placements[i], b = placements[j];
+          if (!a || !b || rectsOverlap(a.box, b.box) <= 0) continue;
+          const rank = (k) => (items[k].role !== "mid" || items[k].pair ? 99 : items[k].stop.transfers.length);
+          const drop = rank(i) < rank(j) ? i : rank(j) < rank(i) ? j : (items[i].stop.idx > items[j].stop.idx ? i : j);
+          if (rank(drop) === 99) continue;
+          items.splice(drop, 1);
+          placements.splice(drop, 1);
+          changed = true;
+        }
+      }
+    }
     // 자리가 없어 다른 배지·선 위에 겹치는 환승 1개짜리 역은 지도에서 생략
     for (let i = items.length - 1; i >= 0; i--) {
       const pl = placements[i];
@@ -2471,6 +2487,8 @@ const SeoulEngine = (() => {
     // 급행 정차 여부: '*'나 (급행)으로 표시한 정류장이 있으면 그것만, 없으면 '-'/(통과)가 아닌 정류장 전부
     const markExpress = (list) => {
       const explicit = list.some((st) => st.isExpressStop);
+      // 정차/통과 표시가 하나도 없으면 강조하지 않음 (급행 정차 정류장 미확인 상태)
+      if (!explicit && !list.some((st) => st.isSkip)) { list.forEach((st) => { st.exp = false; }); return list; }
       list.forEach((st) => { st.exp = express && (explicit ? st.isExpressStop : !st.isSkip); if (explicit && !st.isExpressStop) st.isSkip = true; });
       return list;
     };
@@ -2497,7 +2515,11 @@ const SeoulEngine = (() => {
         ? new Set([...outSplit.marks].map((i) => outbound.length - 2 - i))
         : auto(bottomStops));
     const top = routeRow(outbound, 295, x0, from, to, routeColor, "top", directionLayout, departGu, topCross, {});
-    const bottom = routeRow(bottomStops, 610, x0, to, from, routeColor, "bottom", directionLayout, inbound.length ? null : departGu, bottomCross, bottomOpts);
+    // 하행 칸이 비어 있고 '상행 역순'도 꺼져 있으면 편도 노선(예: 급행)으로 보고 아래 줄을 그리지 않음
+    const oneWay = !inboundText && !$("s_autoReverse").checked;
+    const bottom = oneWay
+      ? { width: 0, svg: `<text x="680" y="530" font-size="18" font-weight="800" fill="#8d939a">편도 운행 (${esc(from)} → ${esc(to)} 방향만)</text>` }
+      : routeRow(bottomStops, 610, x0, to, from, routeColor, "bottom", directionLayout, inbound.length ? null : departGu, bottomCross, bottomOpts);
     const width = Math.max(1500, top.width, bottom.width);
     const height = 740;
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);

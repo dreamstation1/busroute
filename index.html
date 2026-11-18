@@ -1374,6 +1374,11 @@ const SeoulEngine = (() => {
   }
 
   // 기울어진(45°) 정류장 이름이 차지하는 길이(px)
+  function labelNameWidth(stop) {
+    const fs = labelFontSize(stop);
+    return [...stop.name].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? fs * 0.98 : /[A-Z0-9]/.test(ch) ? fs * 0.64 : fs * 0.4), 0);
+  }
+
   function labelTextLength(stop) {
     const fs = labelFontSize(stop);
     const nameW = [...stop.name].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? fs * 1.0 : /[A-Z0-9]/.test(ch) ? fs * 0.66 : fs * 0.55), 0);
@@ -1389,16 +1394,16 @@ const SeoulEngine = (() => {
     const labelY = y + dy;
     const color = stop.exp ? EXPRESS_COLOR : "#111";
     const onlyTag = stop.exp && stop.expressOnly
-      ? `<g transform="rotate(${angle} ${labelX} ${labelY})">
-          <rect x="${(labelX + labelTextLength(stop) - 48 + 6).toFixed(1)}" y="${labelY - 11}" width="40" height="13" rx="2" fill="#f3e600"/>
-          <text x="${(labelX + labelTextLength(stop) - 48 + 26).toFixed(1)}" y="${labelY - 1.5}" text-anchor="middle" font-size="8" font-weight="900" fill="#333">일반 미정차</text>
-        </g>`
+      ? `<g transform="rotate(${angle} ${labelX} ${labelY})"><g class="onlytag" transform="translate(${labelNameWidth(stop).toFixed(1)} 0)">
+          <rect x="${labelX + 6}" y="${labelY - 11}" width="40" height="13" rx="2" fill="#f3e600"/>
+          <text x="${labelX + 26}" y="${labelY - 1.5}" text-anchor="middle" font-size="8" font-weight="900" fill="#333">일반 미정차</text>
+        </g></g>`
       : "";
     const english = stop.english
       ? `<tspan x="${labelX}" dy="11" font-size="8.2" font-weight="700" fill="${stop.exp ? EXPRESS_COLOR : "#333"}">${esc(stop.english)}</tspan>`
       : "";
     return `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize.toFixed(1)}" font-weight="900" fill="${color}">
-      <tspan x="${labelX}">${esc(stop.name)}</tspan>${english}
+      <tspan class="stopname" x="${labelX}">${esc(stop.name)}</tspan>${english}
     </text>${onlyTag}`;
   }
 
@@ -1459,7 +1464,7 @@ const SeoulEngine = (() => {
         if (!stops[i].transfers.length) { run = run ? { s: run.s, e: i } : { s: i, e: i }; if (!best || run.e - run.s > best.e - best.s) best = { ...run }; }
         else run = null;
       }
-      if (!best || points[best.e] - points[best.s] < 110) continue;
+      if (!best || points[best.e] - points[best.s] < 60) continue;
       const mx = (points[best.s] + points[best.e]) / 2;
       out += `<text x="${mx}" y="${by + 11}" text-anchor="middle" font-size="9" font-weight="800" fill="${EXPRESS_COLOR}">무정차 구간 (일반버스 정차)</text>`;
     }
@@ -2527,6 +2532,15 @@ const SeoulEngine = (() => {
     return value ? `첫차 ${value} - 막차 (차고지 기준)` : "";
   }
 
+  // '일반 미정차' 표시를 실제 글자 길이에 맞춰 이름 바로 뒤로
+  function fixOnlyTags() {
+    document.querySelectorAll("#routeSvg .onlytag").forEach((tag) => {
+      const name = tag.parentNode.previousElementSibling && tag.parentNode.previousElementSibling.querySelector(".stopname");
+      if (!name) return;
+      try { tag.setAttribute("transform", `translate(${name.getComputedTextLength().toFixed(1)} 0)`); } catch (e) { /* noop */ }
+    });
+  }
+
   function render() {
     const rawNo = $("s_routeNo").value.trim() || "0000";
     // "급행605", "605급행", "급행 605" 처럼 써도 급행으로
@@ -2593,6 +2607,8 @@ const SeoulEngine = (() => {
     const height = 740;
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
 
+    requestAnimationFrame(fixOnlyTags);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fixOnlyTags);
     document.getElementById("sheet").innerHTML = `<svg id="routeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="서울 버스 노선도">
       ${Shared.svgFontStyle}
       <rect width="${width}" height="${height}" fill="#fff"/>

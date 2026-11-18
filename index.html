@@ -1260,6 +1260,11 @@ const SeoulEngine = (() => {
       if (j - i <= 1 && left && left === right && vals[i] !== left) for (let k = i; k <= j; k++) vals[k] = left;
       i = j;
     }
+    // 첫 정류장부터 직접 지정했으면(조사된 데이터) 직접 지정만 그대로 이어서 사용
+    if (stops.length && stops[0].region) {
+      let cur = "";
+      return stops.map((stop) => { if (stop.region) cur = stop.region; return cur; });
+    }
     // 직접 지정: 그 정류장부터, 다음 지정이나 이름·역으로 확실한 정류장 전까지 적용
     let manual = "";
     stops.forEach((stop, i) => {
@@ -1602,12 +1607,16 @@ const SeoulEngine = (() => {
   // 정류장 이름 안에서 역 이름 찾기: 앞은 단어 경계, 뒤는 끝/기호/숫자/출구·광역·환승 등만 허용
   // (남구로역≠구로역, 대림역삼아파트≠대림역)
   const STATION_TAIL_OK = /^($|[^가-힣]|번|출구|광역|환승|앞|입구|사거리|오거리|삼거리|버스|정류장|방면|건너)/;
-  function findStationKeyIn(text) {
+  function findStationKeyIn(text, transfers = null) {
     const head = String(text).replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
     // "숙대입구.서울시교육청역"처럼 점(.)·가운뎃점으로 나뉜 앞부분이 역 이름인 경우
+    // ('역'이 안 붙은 조각은 호선을 같이 적었을 때만: '금호.한솔아파트'는 금호역 아님)
     for (const seg of head.split(/[.·,]/).map((x) => x.trim()).filter(Boolean)) {
       if (STATION_GEO[seg]) return seg;
-      if (!/역$/.test(seg) && STATION_GEO[`${seg}역`]) return `${seg}역`;
+      if (!/역$/.test(seg) && STATION_GEO[`${seg}역`] && transfers && transfers.length) {
+        const e = STATION_DB[`${seg}역`];
+        if (!e || e.some((x) => x[2].split("/").some((l) => transfers.includes(l)))) return `${seg}역`;
+      }
     }
     for (const key of STATION_KEYS_BY_LENGTH) {
       let at = head.indexOf(key);
@@ -1718,7 +1727,9 @@ const SeoulEngine = (() => {
     ["구룡사", { lat: 37.4700, lng: 127.0505 }],
     ["코트라", { lat: 37.4636, lng: 127.0430 }],
     ["목동운동장", { lat: 37.5308, lng: 126.8817 }],
-    ["남부지방법원", { lat: 37.5189, lng: 126.8667 }],
+    ["서울남부지방법원", { lat: 37.5189, lng: 126.8667 }],
+    ["남부지방법원등기국", { lat: 37.5163, lng: 126.8895 }],
+    ["에이스하이테크시티", { lat: 37.5163, lng: 126.8895 }],
     ["남부법원", { lat: 37.5189, lng: 126.8667 }],
     ["파리공원", { lat: 37.5285, lng: 126.8775 }],
     ["오목교", { lat: 37.5245, lng: 126.8752 }],
@@ -1775,7 +1786,7 @@ const SeoulEngine = (() => {
     }
     if (station && STATION_GEO[station]) return { ...stationGeo(station, transfers), conf: "high" };
     // "개화역광역환승센터"처럼 역 이름 뒤에 글자가 붙은 경우 (앞은 단어 경계여야 함: 남구로역≠구로역)
-    const found = findStationKeyIn(name);
+    const found = findStationKeyIn(name, transfers);
     if (found) return { ...stationGeo(found, transfers), conf: "high" };
     const clean = name.replace(/·.*$/, "").replace(/\([^)]*\)/g, "").trim();
     const sorted = [...STOP_KEYWORDS].sort((a, b) => b[0].length - a[0].length);
@@ -2060,7 +2071,7 @@ const SeoulEngine = (() => {
 
   // 지도 라벨은 역 이름만: "오목교역1번출구·대학빌딩" → "오목교역", "개화역광역환승센터" → "개화역"
   function mapLabelForStop(stop) {
-    const known = findStationKeyIn(stop.name);
+    const known = findStationKeyIn(stop.name, stop.transfers);
     if (known && !STATION_ALIASES[known]) return known;
     const station = extractStationKey(stop.name);
     if (station && STATION_ALIASES[station]) return STATION_ALIASES[station][0];

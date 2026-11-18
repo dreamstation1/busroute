@@ -1337,9 +1337,9 @@ const SeoulEngine = (() => {
       }
       // 옆 구 이름과 겹치면 한 줄 아래로
       for (let guard = 0; guard < 4; guard++) {
-        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 4 && q.x0 < tx + tw / 2 + 4 && Math.abs(q.y - ty) < 13);
+        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 6 && q.x0 < tx + tw / 2 + 6 && Math.abs(q.y - ty) < 16);
         if (!hit) break;
-        ty += 14;
+        ty += 17;
       }
       placedLabels.push({ x0: tx - tw / 2, x1: tx + tw / 2, y: ty });
       return `${vline(xLeft)}${vline(xRight)}
@@ -2401,6 +2401,12 @@ const SeoulEngine = (() => {
       });
       if (it.hideLabel) {
         const e = endIcons.find((x) => x.role === (Math.hypot(routePts[0].x - p.x, routePts[0].y - p.y) < 14 ? "start" : "end"));
+        // 기·종점 옆 자리는 한 역만 (이미 붙은 역보다 환승이 적으면 지도에서 뺌)
+        if (e && e.pair) {
+          if (e.pair.stop.transfers.length >= it.stop.transfers.length) { it.dropMe = true; return; }
+          if (e.label === e.pair.label) e.label = "";
+          e.pair.dropMe = true;
+        }
         if (e) {
           it.x = e.x + (e.x < mapWidth / 2 ? 22 : -22);
           it.y = e.y - it.stackH / 2;
@@ -2411,6 +2417,7 @@ const SeoulEngine = (() => {
       }
     });
 
+    for (let i = items.length - 1; i >= 0; i--) if (items[i].dropMe) items.splice(i, 1);
     // 배지끼리 겹치면 환승 노선이 많은 역을 남기고 나머지는 지도에서 뺀다
     {
       const boxOf = (it) => ({ x0: it.x - it.radius - 3, x1: it.x + it.radius + 3, y0: it.y - it.radius - 3, y1: it.y + it.radius + it.stackH + 3 });

@@ -573,6 +573,9 @@
         </div>
       </div>
 
+      <label for="s_expressInfo">급행 안내 (선택 · 예: 강서차고지 ↔ 영등포역 | 평일 출근 3회 (04:00, 07:00, 07:30))</label>
+      <input id="s_expressInfo" value="" placeholder="비워 두면 표시 안 함" />
+
       <label for="s_operator">버스운수</label>
       <input id="s_operator" value="도원교통 02-2612-3516" />
 
@@ -893,6 +896,10 @@ const Shared = (() => {
     // 급행이 서지 않는 정류장: 앞에 "-" 또는 "(통과)"
     let isSkip = false;
     let isExpressStop = false;
+    let expressOnly = false;
+    if (/^[*＊]{2}\s*\S/.test(raw)) { expressOnly = true; raw = raw.replace(/^[*＊]{2}\s*/, ""); }
+    if (/[(（]\s*일반\s*미정차\s*[)）]/.test(raw)) { expressOnly = true; raw = raw.replace(/[(（]\s*일반\s*미정차\s*[)）]/g, "").trim(); }
+    if (expressOnly) isExpressStop = true;
     if (/^[*＊]\s*\S/.test(raw)) { isExpressStop = true; raw = raw.replace(/^[*＊]\s*/, ""); }
     if (/[(（]\s*급행(정차)?\s*[)）]/.test(raw)) { isExpressStop = true; raw = raw.replace(/[(（]\s*급행(정차)?\s*[)）]/g, "").trim(); }
     if (/^[-－]\s*\S/.test(raw)) { isSkip = true; raw = raw.replace(/^[-－]\s*/, ""); }
@@ -910,7 +917,7 @@ const Shared = (() => {
     const english = manualEnglish || (autoEnglish ? inferEnglish(name, englishStyle) : "");
 
     return {
-      name, english, transfers, isMedian, region, isSkip, isExpressStop,
+      name, english, transfers, isMedian, region, isSkip, isExpressStop, expressOnly,
       isStation: transfers.length > 0 || Boolean(extractStationKey(name))
     };
   }
@@ -1317,18 +1324,13 @@ const SeoulEngine = (() => {
         if (b) boxes.push(b);
       }
       const clash = (cx, ty) => boxes.filter((b) => b.x1 > cx - tw / 2 - 3 && b.x0 < cx + tw / 2 + 3 && b.y1 > ty - 11);
-      let tx = mid;
+      // 실제 노선도처럼 경계 점선 바로 오른쪽에 붙여 씀 (자리가 없으면 오른쪽으로 비킴)
+      const lo = xLeft + tw / 2 + 6, hi = xRight - tw / 2 - 2;
+      let tx = hi >= lo ? lo : mid;
       let ty = y + 56 + BADGE_SHIFT;
       if (clash(tx, ty).length) {
-        // 구간 안에서 배지가 없는 가장 가까운 자리 찾기
-        const lo = xLeft + tw / 2 + 2, hi = xRight - tw / 2 - 2;
         let found = null;
-        for (let d = 0; d <= Math.max(0, hi - lo); d += 4) {
-          for (const c of [mid + d, mid - d]) {
-            if (c >= lo && c <= hi && !clash(c, ty).length) { found = c; break; }
-          }
-          if (found !== null) break;
-        }
+        if (hi >= lo) for (let c = lo; c <= hi; c += 4) { if (!clash(c, ty).length) { found = c; break; } }
         if (found !== null) tx = found;
         else ty = Math.max(...clash(tx, ty).map((b) => b.y1)) + 13;
       }
@@ -1375,7 +1377,7 @@ const SeoulEngine = (() => {
     const fs = labelFontSize(stop);
     const nameW = [...stop.name].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? fs * 1.0 : /[A-Z0-9]/.test(ch) ? fs * 0.66 : fs * 0.55), 0);
     const engW = stop.english ? [...stop.english].length * 8.2 * 0.56 : 0;
-    return Math.max(nameW, engW);
+    return Math.max(nameW, engW) + (stop.exp && stop.expressOnly ? 48 : 0);
   }
 
   function labelBlock(x, y, stop, side = "above") {
@@ -1385,12 +1387,18 @@ const SeoulEngine = (() => {
     const labelX = x + 8;
     const labelY = y + dy;
     const color = stop.exp ? EXPRESS_COLOR : "#111";
+    const onlyTag = stop.exp && stop.expressOnly
+      ? `<g transform="rotate(${angle} ${labelX} ${labelY})">
+          <rect x="${(labelX + labelTextLength(stop) - 48 + 6).toFixed(1)}" y="${labelY - 11}" width="40" height="13" rx="2" fill="#f3e600"/>
+          <text x="${(labelX + labelTextLength(stop) - 48 + 26).toFixed(1)}" y="${labelY - 1.5}" text-anchor="middle" font-size="8" font-weight="900" fill="#333">일반 미정차</text>
+        </g>`
+      : "";
     const english = stop.english
       ? `<tspan x="${labelX}" dy="11" font-size="8.2" font-weight="700" fill="${stop.exp ? EXPRESS_COLOR : "#333"}">${esc(stop.english)}</tspan>`
       : "";
     return `<text x="${labelX}" y="${labelY}" transform="rotate(${angle} ${labelX} ${labelY})" font-size="${fontSize.toFixed(1)}" font-weight="900" fill="${color}">
       <tspan x="${labelX}">${esc(stop.name)}</tspan>${english}
-    </text>`;
+    </text>${onlyTag}`;
   }
 
   function stopNode(x, y, stop, routeColor, rowSide) {
@@ -1444,11 +1452,29 @@ const SeoulEngine = (() => {
     for (let k = 0; k < idx.length - 1; k++) {
       const a = idx[k], b = idx[k + 1];
       if (b - a < 4) continue;
-      const between = stops.slice(a + 1, b);
-      if (between.some((st) => st.transfers.length)) continue;
-      const mx = (points[a] + points[b]) / 2;
+      // 배지 없는 정류장이 가장 길게 이어진 곳 가운데에 안내 글씨
+      let best = null, run = null;
+      for (let i = a + 1; i < b; i++) {
+        if (!stops[i].transfers.length) { run = run ? { s: run.s, e: i } : { s: i, e: i }; if (!best || run.e - run.s > best.e - best.s) best = { ...run }; }
+        else run = null;
+      }
+      if (!best || points[best.e] - points[best.s] < 110) continue;
+      const mx = (points[best.s] + points[best.e]) / 2;
       out += `<text x="${mx}" y="${by + 11}" text-anchor="middle" font-size="9" font-weight="800" fill="${EXPRESS_COLOR}">무정차 구간 (일반버스 정차)</text>`;
     }
+    // 급행 회차 지점(노선 끝이 아닌 급행 시작·끝)에 빨간 회차 표시
+    const turnAt = [];
+    if (idx[0] !== 0) turnAt.push(idx[0]);
+    if (idx.at(-1) !== stops.length - 1) turnAt.push(idx.at(-1));
+    turnAt.forEach((i) => {
+      const n = stops[i].transfers.length;
+      const cy = n ? y + 18 + BADGE_SHIFT + (Math.min(3, n) - 1) * 20 + 9 + 11 : by + 16;
+      out += `<g transform="translate(${points[i]} ${cy}) scale(0.62)">
+        <circle cx="0" cy="0" r="11" fill="${EXPRESS_COLOR}" stroke="#fff" stroke-width="2"/>
+        <path d="M 5.6 -4.4 H -1.6 A 4.4 4.4 0 0 0 -1.6 4.4 H 2.6" fill="none" stroke="#fff" stroke-width="2.7" stroke-linejoin="round"/>
+        <polygon points="2.2,0.6 7.4,4.4 2.2,8.2" fill="#fff"/>
+      </g>`;
+    });
     out += idx.map((i) => `<g>
       <rect x="${points[i] - 13}" y="${by - 6}" width="26" height="12" rx="2.5" fill="${EXPRESS_COLOR}"/>
       <text x="${points[i]}" y="${by + 3.2}" text-anchor="middle" font-size="8.5" font-weight="900" fill="#fff">급행</text>
@@ -2087,7 +2113,8 @@ const SeoulEngine = (() => {
   // 지하철 표시(환승 배지)가 있는 정류장만 지도에 올린다. 기·종점 글자는 역일 때만.
   function chooseMapStops(stops) {
     const n = stops.length;
-    const withRail = (s) => s.transfers.length > 0 && !s.isSkip;
+    // 지도는 일반 노선 기준이라 급행 미정차 역도 표시 (숨기기 모드에선 이미 빠져 있음)
+    const withRail = (s) => s.transfers.length > 0;
     const chosen = [];
     if (n) chosen.push({ ...stops[0], idx: 0, role: "start", mapLabel: withRail(stops[0]) ? mapLabelForStop(stops[0]) : "" });
     stops.forEach((s, idx) => {
@@ -2479,17 +2506,17 @@ const SeoulEngine = (() => {
       if (split.marks) {
         const keptBefore = [];
         let c = 0;
-        list.forEach((st) => { if (!st.isSkip) c++; keptBefore.push(c); });
+        list.forEach((st) => { if (!st.notExpress) c++; keptBefore.push(c); });
         split.marks = new Set([...split.marks].map((i) => keptBefore[i] - 1).filter((i) => i >= 0 && i < c - 1));
       }
-      return list.filter((st) => !st.isSkip);
+      return list.filter((st) => !st.notExpress);
     };
     // 급행 정차 여부: '*'나 (급행)으로 표시한 정류장이 있으면 그것만, 없으면 '-'/(통과)가 아닌 정류장 전부
     const markExpress = (list) => {
       const explicit = list.some((st) => st.isExpressStop);
       // 정차/통과 표시가 하나도 없으면 강조하지 않음 (급행 정차 정류장 미확인 상태)
       if (!explicit && !list.some((st) => st.isSkip)) { list.forEach((st) => { st.exp = false; }); return list; }
-      list.forEach((st) => { st.exp = express && (explicit ? st.isExpressStop : !st.isSkip); if (explicit && !st.isExpressStop) st.isSkip = true; });
+      list.forEach((st) => { st.exp = express && (explicit ? st.isExpressStop : !st.isSkip); st.notExpress = express && !st.exp; });
       return list;
     };
     const outbound = dropSkips(markExpress(parseStops(outSplit.text, opts)), outSplit);
@@ -2545,7 +2572,18 @@ const SeoulEngine = (() => {
       <g transform="translate(98 0)">${legend(allTransfers)}</g>
       <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("s_interval").value)}</text>
       <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("s_firstLast").value))}</text>
-      <text x="486" y="684" font-size="15" font-weight="1000">${esc($("s_operator").value)}</text>
+      ${(() => {
+        const info = ($("s_expressInfo") ? $("s_expressInfo").value : "").trim();
+        if (!info) return `<text x="486" y="684" font-size="15" font-weight="1000">${esc($("s_operator").value)}</text>`;
+        const [l1, l2] = info.split("|").map((v) => v.trim());
+        return `<g>
+          <rect x="486" y="668" width="32" height="18" rx="2" fill="${EXPRESS_COLOR}"/>
+          <text x="502" y="681.5" text-anchor="middle" font-size="11.5" font-weight="900" fill="#fff">급행</text>
+          <text x="524" y="683" font-size="15" font-weight="1000" fill="${EXPRESS_COLOR}">${esc(l1 || "")}</text>
+          ${l2 ? `<text x="486" y="701" font-size="11.5" font-weight="700" fill="#333">${esc(l2)}</text>` : ""}
+          <text x="486" y="${l2 ? 724 : 708}" font-size="13" font-weight="900">${esc($("s_operator").value)}</text>
+        </g>`;
+      })()}
       ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
       ${top.svg}
       ${bottom.svg}
@@ -2571,7 +2609,7 @@ const SeoulEngine = (() => {
 
   function bind() {
     ["s_routeNo", "s_routeColor", "s_from", "s_to", "s_departGu", "s_directionLayout", "s_outbound", "s_inbound",
-      "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish", "s_mapHalo", "s_autoRiver", "s_showRegion", "s_express", "s_hideSkip"]
+      "s_interval", "s_firstLast", "s_operator", "s_adminPassword", "s_autoReverse", "s_autoEnglish", "s_mapHalo", "s_autoRiver", "s_showRegion", "s_express", "s_hideSkip", "s_expressInfo"]
       .forEach((id) => $(id).addEventListener("input", () => App.renderIfActive("seoul")));
     $("s_renderBtn").addEventListener("click", render);
     const fileNo = () => { const v = $("s_routeNo").value.trim() || "template"; return ($("s_express").checked && !/급행/.test(v)) ? `급행${v}` : v; };

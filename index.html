@@ -1950,6 +1950,27 @@ const SeoulEngine = (() => {
       }));
     }
 
+    // 기·종점 쪽에 위치 모르는 정류장이 남아 있으면, 마지막 역에서 끊지 말고
+    // 진행 방향으로 정류장 수만큼(1곳당 약 350m, 최대 2.5km) 더 이어 그린다
+    {
+      const extend = (base, prev, count, idx) => {
+        let dx = (base.lng - prev.lng) * KM_LNG, dy = (base.lat - prev.lat) * KM_LAT;
+        let L = Math.hypot(dx, dy);
+        if (L < 0.05) { dx = 1; dy = 0; L = 1; }
+        const km = Math.min(2.5, Math.max(0.5, count * 0.35));
+        return { i: idx, conf: "low", lat: base.lat + (dy / L) * km / KM_LAT, lng: base.lng + (dx / L) * km / KM_LNG };
+      };
+      if (anchors.length && anchors[0].i > 0) {
+        const f = anchors[0], nx = anchors[1] || anchors[0];
+        anchors.unshift(extend(f, nx, f.i, 0));
+      }
+      const last = anchors.at(-1);
+      if (anchors.length && last.i < n - 1) {
+        const pv = anchors.at(-2) || last;
+        anchors.push(extend(last, pv, n - 1 - last.i, n - 1));
+      }
+    }
+
     // 버려진/미확인 정류장은 남은 앵커 사이에 순번 비율로 배치
     const stopGeos = stops.map((_, i) => {
       const exact = anchors.find((a) => a.i === i);

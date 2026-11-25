@@ -490,8 +490,8 @@
 
       <label for="s_directionLayout">방향 화살표 표시</label>
       <select id="s_directionLayout">
-        <option value="single" selected>한줄: 기점 → 종점</option>
-        <option value="double">두줄: 기점 / → 종점</option>
+        <option value="double" selected>두줄: 기점 ⟶ / 종점 (실제 노선도)</option>
+        <option value="single">한줄: 기점 → 종점</option>
       </select>
 
       <label for="s_outbound">상행 정류장</label>
@@ -1312,7 +1312,7 @@ const SeoulEngine = (() => {
       const mid = (xLeft + xRight) / 2;
       // 구 이름 바로 위에 환승 배지가 있으면 겹치지 않게: 먼저 옆으로 비켜 보고, 안 되면 아래로
       const label = String(seg.gu);
-      const tw = [...label].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? 11 : 6.6), 0);
+      const tw = [...label].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? 12 : 7), 0);
       const stackBox = (k) => {
         const n = stops[k].transfers.length;
         if (!n) return null;
@@ -1337,9 +1337,9 @@ const SeoulEngine = (() => {
       }
       // 옆 구 이름과 겹치면 한 줄 아래로
       for (let guard = 0; guard < 4; guard++) {
-        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 6 && q.x0 < tx + tw / 2 + 6 && Math.abs(q.y - ty) < 16);
+        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 8 && q.x0 < tx + tw / 2 + 8 && Math.abs(q.y - ty) < 20);
         if (!hit) break;
-        ty += 17;
+        ty += 20;
       }
       placedLabels.push({ x0: tx - tw / 2, x1: tx + tw / 2, y: ty });
       return `${vline(xLeft)}${vline(xRight)}
@@ -1435,9 +1435,14 @@ const SeoulEngine = (() => {
     // 한 줄에 안 들어가면(정류장 이름과 겹침) 두 줄로, 그래도 길면 글자 크기를 줄인다
     if (layout === "single" && (len(titleA) + len(titleB) + 2.4) * 25 > maxWidth) layout = "double";
     if (layout !== "single") {
-      const fs = Math.max(17, Math.min(31, maxWidth / (Math.max(len(titleA), len(titleB) + 1.4) * 1.02)));
+      // 공식 차내 노선도 형식: 첫 줄 기점 + 긴 화살표, 둘째 줄 종점
+      const fs = Math.max(16, Math.min(27, maxWidth / (Math.max(len(titleA) + 2.6, len(titleB)) * 1.02)));
+      const ax = x + len(titleA) * fs * 1.0 + 12;
+      const ay = y - fs * 0.33;
       return `<text x="${x}" y="${y}" font-size="${fs.toFixed(1)}" font-weight="900" fill="${routeColor}">${esc(titleA)}</text>
-      <text x="${x}" y="${y + fs * 1.45}" font-size="${fs.toFixed(1)}" font-weight="900" fill="${routeColor}">→ ${esc(titleB)}</text>`;
+      <line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${(ax + fs * 1.9).toFixed(1)}" y2="${ay.toFixed(1)}" stroke="${routeColor}" stroke-width="${(fs * 0.13).toFixed(1)}"/>
+      <polygon points="${(ax + fs * 2.3).toFixed(1)},${ay.toFixed(1)} ${(ax + fs * 1.75).toFixed(1)},${(ay - fs * 0.3).toFixed(1)} ${(ax + fs * 1.75).toFixed(1)},${(ay + fs * 0.3).toFixed(1)}" fill="${routeColor}"/>
+      <text x="${x}" y="${y + fs * 1.6}" font-size="${fs.toFixed(1)}" font-weight="900" fill="${routeColor}">${esc(titleB)}</text>`;
     }
     if (layout === "single") {
       return `<text x="${x}" y="${y + 23}" font-size="25" font-weight="900" fill="${routeColor}">
@@ -1513,7 +1518,7 @@ const SeoulEngine = (() => {
       // 마지막 쪽 긴 이름이 그림 밖으로 안 나가게 기울어진 글자 끝까지 폭에 포함
       width: Math.max(endX + 125, ...stops.map((stop, i) => points[i] + 8 + labelTextLength(stop) * 0.7071 + 24)),
       svg: `<g>
-        ${directionTitle(680, titleY, titleA, titleB, routeColor, layout)}
+        ${directionTitle(x0 - 300, titleY, titleA, titleB, routeColor, layout, 280)}
         <line x1="${x0}" y1="${y}" x2="${endX}" y2="${y}" stroke="#111" stroke-width="4" stroke-linecap="round"/>
         ${labels}
         ${expressBand(stops, points, y)}
@@ -1526,7 +1531,9 @@ const SeoulEngine = (() => {
     };
   }
 
-  const mapWidth = 455;
+  // 공식 차내 노선도처럼 지도 칸을 정사각형에 가깝게
+  const mapWidth = 700;
+  const RIGHT_SHIFT = mapWidth - 455;
   const mapHeight = 740;
 
   const STATION_GEO_MANUAL = {
@@ -1969,8 +1976,9 @@ const SeoulEngine = (() => {
     });
 
     const pathGeos = anchors.map((a) => ({ lat: a.lat, lng: a.lng }));
-    if (pathGeos.length === 1) pathGeos.push({ ...pathGeos[0] });
-    return { stopGeos, pathGeos };
+    const pathIdx = anchors.map((a) => a.i);
+    if (pathGeos.length === 1) { pathGeos.push({ ...pathGeos[0] }); pathIdx.push(pathIdx[0]); }
+    return { stopGeos, pathGeos, pathIdx };
   }
 
   // 실제 노선도처럼 거의 직선으로 잇고, 꺾이는 곳만 살짝 둥글게
@@ -2035,7 +2043,7 @@ const SeoulEngine = (() => {
   }
 
   // 위경도 비율을 유지하는 투영 (가로·세로 따로 늘리지 않음)
-  const MAP_AREA = { x0: 40, x1: 415, y0: 170, y1: 700 };
+  const MAP_AREA = { x0: 46, x1: 654, y0: 56, y1: 690 };
   function computeBounds(geos) {
     const lats = geos.map((g) => g.lat);
     const lngs = geos.map((g) => g.lng);
@@ -2083,13 +2091,12 @@ const SeoulEngine = (() => {
     const proj = (g) => projectGeo(g.lat, g.lng, bounds);
     const visible = SeoulGeo.gus.filter((g) =>
       g.bbox.maxLat > se.lat && g.bbox.minLat < nw.lat && g.bbox.maxLng > nw.lng && g.bbox.minLng < se.lng);
-    const polys = visible.map((g) => {
-      const fill = routeGus.has(g.name) ? "#b3b6b9" : "#d3d5d8";
-      return `<path d="${g.rings.map((r) => geoPathD(r, proj)).join("")}" fill="${fill}" fill-rule="evenodd" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>`;
-    }).join("");
-    const riverW = Math.max(10, Math.min(60, 0.95 * bounds.scale));
+    // 공식 노선도처럼 구 경계 없이 회색 땅 하나 + 하얀 한강
+    const polys = visible.map((g) =>
+      `<path d="${g.rings.map((r) => geoPathD(r, proj)).join("")}" fill="#a7a9ac" fill-rule="evenodd" stroke="#a7a9ac" stroke-width="1.2" stroke-linejoin="round"/>`).join("");
+    const riverW = Math.max(14, Math.min(60, 1.05 * bounds.scale));
     const river = `<path d="${geoPathD(SeoulGeo.river, proj, false)}" fill="none" stroke="#fff" stroke-width="${riverW.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
-    return { svg: `<rect x="0" y="0" width="${mapWidth}" height="${mapHeight}" fill="#eceef0"/>${polys}${river}`, visible };
+    return { svg: `<rect x="0" y="0" width="${mapWidth}" height="${mapHeight}" fill="#c9cbcd"/>${polys}${river}`, visible };
   }
 
   function guNameLabels(visible, bounds, placedBoxes, routeSamples) {
@@ -2105,10 +2112,9 @@ const SeoulEngine = (() => {
     }).join("");
   }
 
-  // 좌상단 서울 전도 인셋: 출발 구 강조 + 노선 + 현재 지도 범위 박스
-  function seoulInset(bounds, pathGeos, departGu, routeColor) {
-    const box = { x: 18, y: 18, w: 128, h: 128 };
-    const area = { x0: box.x + 6, x1: box.x + box.w - 6, y0: box.y + 44, y1: box.y + box.h - 6 };
+  // 서울 전도 인셋 (글자 없이): 서울 모양 + 노선 + 지금 지도 범위(노선색 박스)
+  function seoulInset(bounds, pathGeos, departGu, routeColor, box) {
+    const area = { x0: box.x0 + 8, x1: box.x1 - 8, y0: box.y0 + 8, y1: box.y1 - 8 };
     const e = SeoulGeo.extent;
     const wKm = (e.maxLng - e.minLng) * KM_LNG;
     const hKm = (e.maxLat - e.minLat) * KM_LAT;
@@ -2117,22 +2123,98 @@ const SeoulEngine = (() => {
     const cLng = (e.minLng + e.maxLng) / 2, cLat = (e.minLat + e.maxLat) / 2;
     const proj = (g) => ({ x: cx + (g.lng - cLng) * KM_LNG * sc, y: cy - (g.lat - cLat) * KM_LAT * sc });
     const gus = SeoulGeo.gus.map((g) =>
-      `<path d="${g.rings.map((r) => geoPathD(r, proj)).join("")}" fill="${g.name === departGu ? "#7d8288" : "#b5b9bd"}" fill-rule="evenodd" stroke="#fff" stroke-width="0.4"/>`).join("");
-    const river = `<path d="${geoPathD(SeoulGeo.river, proj, false)}" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>`;
-    const route = pathGeos.length > 1 ? `<path d="${geoPathD(pathGeos, proj, false)}" fill="none" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/>` : "";
+      `<path d="${g.rings.map((r) => geoPathD(r, proj)).join("")}" fill="#b9bbbe" fill-rule="evenodd" stroke="#fff" stroke-width="0.5"/>`).join("");
+    const river = `<path d="${geoPathD(SeoulGeo.river, proj, false)}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>`;
+    const route = pathGeos.length > 1 ? `<path d="${geoPathD(pathGeos, proj, false)}" fill="none" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/>` : "";
     const nw = unprojectGeo(0, 0, bounds), se = unprojectGeo(mapWidth, mapHeight, bounds);
     const a = proj(nw), b = proj(se);
-    const rx = Math.max(area.x0 - 4, a.x), ry = Math.max(area.y0 - 4, a.y);
-    const rw = Math.min(area.x1 + 4, b.x) - rx, rh = Math.min(area.y1 + 4, b.y) - ry;
+    const rx = Math.max(box.x0 + 2, a.x), ry = Math.max(box.y0 + 2, a.y);
+    const rw = Math.min(box.x1 - 2, b.x) - rx, rh = Math.min(box.y1 - 2, b.y) - ry;
     return `<g>
-      <rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#fff" stroke="#888" stroke-width="1.8" rx="4"/>
-      <text x="${box.x + 7}" y="${box.y + 18}" font-size="10" font-weight="800" fill="#555">서울특별시</text>
-      <text x="${box.x + 7}" y="${box.y + 38}" font-size="14" font-weight="900" fill="#111">${esc(departGu || "")}</text>
-      <clipPath id="insetClip"><rect x="${box.x + 1}" y="${box.y + 40}" width="${box.w - 2}" height="${box.h - 41}"/></clipPath>
+      <rect x="${box.x0}" y="${box.y0}" width="${box.x1 - box.x0}" height="${box.y1 - box.y0}" fill="#fff" stroke="#9a9da1" stroke-width="1.2"/>
+      <clipPath id="insetClip"><rect x="${box.x0 + 1}" y="${box.y0 + 1}" width="${box.x1 - box.x0 - 2}" height="${box.y1 - box.y0 - 2}"/></clipPath>
       <g clip-path="url(#insetClip)">${gus}${river}${route}
-        <rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${Math.max(4, rw).toFixed(1)}" height="${Math.max(4, rh).toFixed(1)}" fill="none" stroke="${routeColor}" stroke-width="1.8"/>
+        <rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${Math.max(6, rw).toFixed(1)}" height="${Math.max(6, rh).toFixed(1)}" fill="none" stroke="${routeColor}" stroke-width="2"/>
       </g>
     </g>`;
+  }
+
+  // 지하철 노선도처럼 0°·45°·90°로만 꺾이게: 구간마다 '직선 → 45°' 꺾임 하나
+  function octilinear(pts) {
+    const out = pts.length ? [{ ...pts[0] }] : [];
+    const segStart = [0];
+    for (let k = 1; k < pts.length; k++) {
+      const a = out.at(-1), b = pts[k];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const ax = Math.abs(dx), ay = Math.abs(dy);
+      const ang = Math.atan2(ay, ax) * 180 / Math.PI;
+      const near = Math.min(ang, Math.abs(ang - 45), 90 - ang);
+      if (Math.hypot(dx, dy) > 4 && near > 4) {
+        const d = Math.min(ax, ay);
+        // 긴 쪽 직선을 먼저, 마지막에 45°로 들어감
+        const ex = ax > ay ? a.x + Math.sign(dx) * (ax - d) : a.x;
+        const ey = ax > ay ? a.y : a.y + Math.sign(dy) * (ay - d);
+        out.push({ x: ex, y: ey });
+      }
+      out.push({ x: b.x, y: b.y });
+      segStart.push(out.length - 1);
+    }
+    return { pts: out, segEnd: segStart };
+  }
+
+  // 반대 방향 노선은 거꾸로 계산해서, 같은 길이면 상행 선과 똑같이 겹치게
+  function octilinearReverse(pts) {
+    const n = pts.length;
+    const o = octilinear([...pts].reverse());
+    const L = o.pts.length;
+    return { pts: [...o.pts].reverse(), segEnd: Array.from({ length: n }, (_, k) => L - 1 - o.segEnd[n - 1 - k]) };
+  }
+
+  // 꺾인 노선 위에서 앵커 a~b 사이 비율 t 지점
+  function pointOnOcti(octi, segIdx, t) {
+    const s0 = octi.segEnd[segIdx], s1 = octi.segEnd[segIdx + 1];
+    const poly = octi.pts.slice(s0, s1 + 1);
+    let total = 0;
+    for (let k = 1; k < poly.length; k++) total += Math.hypot(poly[k].x - poly[k - 1].x, poly[k].y - poly[k - 1].y);
+    let want = total * t;
+    for (let k = 1; k < poly.length; k++) {
+      const L = Math.hypot(poly[k].x - poly[k - 1].x, poly[k].y - poly[k - 1].y);
+      if (want <= L || k === poly.length - 1) {
+        const f = L ? Math.min(1, want / L) : 0;
+        return { x: poly[k - 1].x + (poly[k].x - poly[k - 1].x) * f, y: poly[k - 1].y + (poly[k].y - poly[k - 1].y) * f };
+      }
+      want -= L;
+    }
+    return { ...poly[0] };
+  }
+
+  // 정류장 위치를 꺾인 노선 위로 다시 배치
+  function stopsOnOcti(n, pathIdx, octi, fallbackPts) {
+    return Array.from({ length: n }, (_, i) => {
+      let seg = -1;
+      for (let k = 0; k < pathIdx.length - 1; k++) {
+        if (pathIdx[k] <= i && i <= pathIdx[k + 1] && pathIdx[k + 1] > pathIdx[k]) { seg = k; break; }
+      }
+      if (seg < 0) return fallbackPts[i];
+      const t = (i - pathIdx[seg]) / (pathIdx[seg + 1] - pathIdx[seg]);
+      return pointOnOcti(octi, seg, t);
+    });
+  }
+
+  // 인셋은 노선·역이 가장 적게 지나는 구석에
+  function pickInsetBox(samples, w = 150, h = 128) {
+    const m = 12;
+    const cands = [
+      { x0: m, y0: m }, { x0: mapWidth - w - m, y0: m },
+      { x0: m, y0: mapHeight - h - m }, { x0: mapWidth - w - m, y0: mapHeight - h - m }
+    ].map((c) => ({ ...c, x1: c.x0 + w, y1: c.y0 + h }));
+    let best = null;
+    cands.forEach((c, k) => {
+      const hits = samples.filter((p) => p.x > c.x0 - 18 && p.x < c.x1 + 18 && p.y > c.y0 - 18 && p.y < c.y1 + 18).length;
+      const score = hits * 10 + k;
+      if (!best || score < best.score) best = { ...c, score };
+    });
+    return best;
   }
 
   // 지도 라벨은 역 이름만: "오목교역1번출구·대학빌딩" → "오목교역", "개화역광역환승센터" → "개화역"
@@ -2177,7 +2259,7 @@ const SeoulEngine = (() => {
   }
 
   function textWidth(label, size = 13) {
-    return [...String(label)].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? size * 1.0 : size * 0.6), 0);
+    return [...String(label)].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? size * 1.08 : size * 0.64), 0);
   }
 
   function rectsOverlap(a, b) {
@@ -2189,7 +2271,7 @@ const SeoulEngine = (() => {
   // 라벨끼리, 노선선, 마커, 인셋과 겹치지 않는 위치를 고른다
   function placeLabels(items, obstacles, routeSamples) {
     const placed = [];
-    const H = 20;
+    const H = 22;
     return items.map((it) => {
       const w = textWidth(it.label);
       const r = it.radius;
@@ -2367,12 +2449,17 @@ const SeoulEngine = (() => {
       ? resolveRouteGeos(inbound, { startGeo: pathGeos.at(-1), endGeo: pathGeos[0] })
       : null;
     const bounds = computeBounds(pathGeos.concat(stopGeos, inGeo ? inGeo.pathGeos.concat(inGeo.stopGeos) : []));
-    const routePts = pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
+    const rawRoutePts = pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
+    const outOcti = octilinear(rawRoutePts);
+    const routePts = outOcti.pts;
     const routePath = smoothRoutePath(routePts);
-    const stopPts = stopGeos.map((g) => projectGeo(g.lat, g.lng, bounds));
-    const inRoutePts = inGeo ? inGeo.pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds)) : [];
+    const stopPts = stopsOnOcti(stops.length, resolveRouteGeos(stops).pathIdx, outOcti,
+      stopGeos.map((g) => projectGeo(g.lat, g.lng, bounds)));
+    const inOcti = inGeo ? octilinearReverse(inGeo.pathGeos.map((g) => projectGeo(g.lat, g.lng, bounds))) : null;
+    const inRoutePts = inOcti ? inOcti.pts : [];
     const inPath = inRoutePts.length > 1 ? smoothRoutePath(inRoutePts) : "";
-    const inStopPts = inGeo ? inGeo.stopGeos.map((g) => projectGeo(g.lat, g.lng, bounds)) : [];
+    const inStopPts = inGeo ? stopsOnOcti(inbound.length, inGeo.pathIdx, inOcti,
+      inGeo.stopGeos.map((g) => projectGeo(g.lat, g.lng, bounds))) : [];
 
     // 회차지행(상행) 역 + 종점행(하행)에만 있는 역
     const mapStops = chooseMapStops(stops).map((s) => ({ ...s, pt: stopPts[s.idx] }));
@@ -2436,7 +2523,9 @@ const SeoulEngine = (() => {
       for (let i = items.length - 1; i >= 0; i--) if (!kept.includes(items[i])) items.splice(i, 1);
     }
 
-    const inset = { x0: 14, x1: 150, y0: 14, y1: 150 };
+    const insetBox = pickInsetBox(sampleSvgPath(routePts).concat(inRoutePts.length > 1 ? sampleSvgPath(inRoutePts) : [],
+      items.map((it) => ({ x: it.x, y: it.y }))));
+    const inset = { x0: insetBox.x0 - 4, x1: insetBox.x1 + 4, y0: insetBox.y0 - 4, y1: insetBox.y1 + 4 };
     const markerBoxes = items.map((it) => ({ x0: it.x - it.radius, x1: it.x + it.radius, y0: it.y - it.radius, y1: it.y + it.radius + it.stackH, isMarker: true }));
     items.forEach((it, i) => { it.self = markerBoxes[i]; });
     const routeSamples = sampleSvgPath(routePts).concat(inRoutePts.length > 1 ? sampleSvgPath(inRoutePts) : []);
@@ -2507,24 +2596,26 @@ const SeoulEngine = (() => {
         ${routePts.length > 1 ? routeEndpointAlong(routePts, routeColor, "uturn") : ""}
         ${labels}
       </g>
-      ${seoulInset(bounds, pathGeos, insetGu, routeColor)}
+      ${seoulInset(bounds, pathGeos, insetGu, routeColor, insetBox)}
     </g>`;
   }
 
+  // 공식 노선도처럼 작은 배지 + 이름, 7개 넘으면 2열
   function legend(transfers) {
-    // 한 줄로 쌓되, 많으면 간격을 줄여 방향 제목·배차 글씨와 안 겹치게
     const items = sortLines(Array.from(new Set(transfers))).slice(0, 18);
-    const gap = items.length > 1 ? Math.min(28, 370 / (items.length - 1)) : 28;
-    const size = gap < 24 ? 16 : 18;
-    const fs = gap < 24 ? 12.5 : 14;
-    return `<g transform="translate(406 220)">
+    const twoCol = items.length > 7;
+    const perCol = twoCol ? Math.ceil(items.length / 2) : items.length;
+    const gap = Math.min(25, 300 / Math.max(1, perCol - 1));
+    return `<g transform="translate(406 222)">
       ${items.map((t, i) => {
-        const y = i * gap;
-        return `${marker(0, y, transferColors[t] || "#777", lineLabels[t] || t, size)}
-          <text x="${size / 2 + 13}" y="${y + fs * 0.36}" font-size="${fs}" font-weight="800">${esc(lineNames[t] || t)}</text>`;
+        const x = twoCol && i >= perCol ? 128 : 0;
+        const y = (i % perCol) * gap;
+        return `${marker(x, y, transferColors[t] || "#777", lineLabels[t] || t, 16)}
+          <text x="${x + 15}" y="${y + 4.6}" font-size="12.5" font-weight="700">${esc(lineNames[t] || t)}</text>`;
       }).join("")}
     </g>`;
   }
+  function legendIsWide(transfers) { return new Set(transfers).size > 7; }
 
   function formatFirstLast(value) {
     const times = String(value).match(/\d{1,2}:\d{2}/g) || [];
@@ -2584,7 +2675,8 @@ const SeoulEngine = (() => {
     // 통과 정류장을 숨기면 전부 급행 정차라 굳이 꾸밀 필요 없음
     BADGE_SHIFT = express && !hideSkip && outbound.concat(inbound).some((st) => st.exp) && outbound.concat(inbound).some((st) => !st.exp) ? 14 : 0;
     const departGu = resolveDepartGu(outbound, from);
-    const x0 = 980;
+    const wideLegend = legendIsWide(outbound.concat(inbound).flatMap((s) => s.transfers));
+    const x0 = wideLegend ? 1060 : 980;
     const outPath = outbound.length ? resolveRouteGeos(outbound).pathGeos : [];
     // 정류장 칸에 |한강| 또는 ~한강~ 을 넣었으면 그 위치를 그대로 쓰고, 없으면 자동 판단
     const autoRiver = $("s_autoRiver") ? $("s_autoRiver").checked : true;
@@ -2603,7 +2695,7 @@ const SeoulEngine = (() => {
     const bottom = oneWay
       ? { width: 0, svg: `<text x="680" y="530" font-size="18" font-weight="800" fill="#8d939a">편도 운행 (${esc(from)} → ${esc(to)} 방향만)</text>` }
       : routeRow(bottomStops, 610, x0, to, from, routeColor, "bottom", directionLayout, inbound.length ? null : departGu, bottomCross, bottomOpts);
-    const width = Math.max(1500, top.width, bottom.width);
+    const width = Math.max(1500, top.width, bottom.width) + RIGHT_SHIFT;
     const height = 740;
     const allTransfers = outbound.concat(inbound).flatMap((s) => s.transfers);
 
@@ -2614,6 +2706,7 @@ const SeoulEngine = (() => {
       <rect width="${width}" height="${height}" fill="#fff"/>
       ${miniMap(outbound, routeColor, from, to, departGu, inboundText ? inbound : [])}
       <line x1="${mapWidth}" y1="0" x2="${mapWidth}" y2="${height}" stroke="#adb3ba" stroke-width="2"/>
+      <g transform="translate(${RIGHT_SHIFT} 0)">
       ${numberSaysExpress ? `<g>
         <rect x="490" y="14" width="74" height="34" rx="17" fill="#e60012"/>
         <text x="527" y="38.5" text-anchor="middle" font-size="21" font-weight="900" fill="#fff">급행</text>
@@ -2621,11 +2714,19 @@ const SeoulEngine = (() => {
       <text x="490" y="130" transform="scale(1 1.25)" font-size="112" font-weight="900" fill="${routeColor}">${esc(routeNo)}</text>
 
       <g transform="translate(98 0)">${legend(allTransfers)}</g>
-      <text x="486" y="632" font-size="15" font-weight="1000">배차 ${esc($("s_interval").value)}</text>
-      <text x="486" y="658" font-size="15" font-weight="1000">${esc(formatFirstLast($("s_firstLast").value))}</text>
+      ${(() => {
+        // 공식 노선도처럼 작은 글씨: 굵은 항목명 + 보통 굵기 값
+        const iv = $("s_interval").value.split(/,\s*/).filter(Boolean);
+        const fl = formatFirstLast($("s_firstLast").value).replace(/^첫차\s*/, "");
+        const lines = [`<tspan font-weight="900">배차</tspan> ${esc(iv.slice(0, 2).join(", "))}`];
+        if (iv.length > 2) lines.push(`<tspan dx="0">　　${esc(iv.slice(2).join(", "))}</tspan>`);
+        lines.push(`<tspan font-weight="900">첫차</tspan> ${esc(fl).replace(/—\s*막차/, `— <tspan font-weight="900">막차</tspan>`)}`);
+        const y0 = iv.length > 2 ? 600 : 622;
+        return lines.map((l, k) => `<text x="486" y="${y0 + k * 21}" font-size="12.5" font-weight="600">${l}</text>`).join("");
+      })()}
       ${(() => {
         const info = ($("s_expressInfo") ? $("s_expressInfo").value : "").trim();
-        if (!info) return `<text x="486" y="684" font-size="15" font-weight="1000">${esc($("s_operator").value)}</text>`;
+        if (!info) return `<text x="486" y="686" font-size="12.5" font-weight="900">${esc($("s_operator").value)}</text>`;
         const [l1, l2] = info.split("|").map((v) => v.trim());
         return `<g>
           <rect x="486" y="668" width="32" height="18" rx="2" fill="${EXPRESS_COLOR}"/>
@@ -2635,15 +2736,16 @@ const SeoulEngine = (() => {
           <text x="486" y="${l2 ? 724 : 708}" font-size="13" font-weight="900">${esc($("s_operator").value)}</text>
         </g>`;
       })()}
-      ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
       ${top.svg}
       ${bottom.svg}
+      </g>
+      ${showWatermark ? `<text x="${mapWidth + (width - mapWidth) / 2}" y="430" text-anchor="middle" transform="rotate(-10 ${mapWidth + (width - mapWidth) / 2} 430)" font-size="110" font-weight="900" fill="#111" opacity="0.08">made by sj_yc12</text>` : ""}
     </svg>`;
   }
 
   const sample5620 = {
     s_routeNo: "5620", s_routeColor: "#13a84b", s_from: "시흥", s_to: "선유도역",
-    s_directionLayout: "single",
+    s_directionLayout: "double",
     s_interval: "8분(평일), 10분(주말), 11분(공휴일)",
     s_firstLast: "04:30 ~ 23:10", s_operator: "도원교통 02-2612-3516",
     s_inbound: ""

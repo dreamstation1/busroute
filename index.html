@@ -2108,7 +2108,7 @@ const SeoulEngine = (() => {
   // 좌상단 서울 전도 인셋: 출발 구 강조 + 노선 + 현재 지도 범위 박스
   function seoulInset(bounds, pathGeos, departGu, routeColor) {
     const box = { x: 18, y: 18, w: 128, h: 128 };
-    const area = { x0: box.x + 6, x1: box.x + box.w - 6, y0: box.y + 44, y1: box.y + box.h - 6 };
+    const area = { x0: box.x + 6, x1: box.x + box.w - 6, y0: box.y + 6, y1: box.y + box.h - 6 };
     const e = SeoulGeo.extent;
     const wKm = (e.maxLng - e.minLng) * KM_LNG;
     const hKm = (e.maxLat - e.minLat) * KM_LAT;
@@ -2126,9 +2126,7 @@ const SeoulEngine = (() => {
     const rw = Math.min(area.x1 + 4, b.x) - rx, rh = Math.min(area.y1 + 4, b.y) - ry;
     return `<g>
       <rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#fff" stroke="#888" stroke-width="1.8" rx="4"/>
-      <text x="${box.x + 7}" y="${box.y + 18}" font-size="10" font-weight="800" fill="#555">서울특별시</text>
-      <text x="${box.x + 7}" y="${box.y + 38}" font-size="14" font-weight="900" fill="#111">${esc(departGu || "")}</text>
-      <clipPath id="insetClip"><rect x="${box.x + 1}" y="${box.y + 40}" width="${box.w - 2}" height="${box.h - 41}"/></clipPath>
+      <clipPath id="insetClip"><rect x="${box.x + 1}" y="${box.y + 1}" width="${box.w - 2}" height="${box.h - 2}"/></clipPath>
       <g clip-path="url(#insetClip)">${gus}${river}${route}
         <rect x="${rx.toFixed(1)}" y="${ry.toFixed(1)}" width="${Math.max(4, rw).toFixed(1)}" height="${Math.max(4, rh).toFixed(1)}" fill="none" stroke="${routeColor}" stroke-width="1.8"/>
       </g>

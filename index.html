@@ -1312,7 +1312,7 @@ const SeoulEngine = (() => {
       const mid = (xLeft + xRight) / 2;
       // 구 이름 바로 위에 환승 배지가 있으면 겹치지 않게: 먼저 옆으로 비켜 보고, 안 되면 아래로
       const label = String(seg.gu);
-      const tw = [...label].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? 11 : 6.6), 0);
+      const tw = [...label].reduce((w, ch) => w + (/[가-힣]/.test(ch) ? 12 : 7), 0);
       const stackBox = (k) => {
         const n = stops[k].transfers.length;
         if (!n) return null;
@@ -1337,9 +1337,9 @@ const SeoulEngine = (() => {
       }
       // 옆 구 이름과 겹치면 한 줄 아래로
       for (let guard = 0; guard < 4; guard++) {
-        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 6 && q.x0 < tx + tw / 2 + 6 && Math.abs(q.y - ty) < 16);
+        const hit = placedLabels.some((q) => q.x1 > tx - tw / 2 - 8 && q.x0 < tx + tw / 2 + 8 && Math.abs(q.y - ty) < 20);
         if (!hit) break;
-        ty += 17;
+        ty += 20;
       }
       placedLabels.push({ x0: tx - tw / 2, x1: tx + tw / 2, y: ty });
       return `${vline(xLeft)}${vline(xRight)}
